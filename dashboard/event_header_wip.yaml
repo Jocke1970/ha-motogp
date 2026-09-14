@@ -1,0 +1,406 @@
+type: custom:button-card
+show_icon: false
+show_name: false
+
+triggers_update:
+  - sensor.motogp_next_race
+  - sensor.motogp_current_season
+  - sensor.motogp_session_status
+  - sensor.motogp_current_session
+  - sensor.motogp_session_time_remaining
+  - binary_sensor.motogp_race_week
+  - binary_sensor.motogp_live_timing_online
+  - sensor.time
+
+custom_fields:
+  content: |
+    [[[
+      const race = states['sensor.motogp_next_race'];
+      const seasonEntity = states['sensor.motogp_current_season'];
+      const raceWeek = states['binary_sensor.motogp_race_week'];
+      const sessionEntity = states['sensor.motogp_current_session'];
+      const statusEntity = states['sensor.motogp_session_status'];
+      const remainingEntity = states['sensor.motogp_session_time_remaining'];
+
+      const unavailable = ['unknown', 'unavailable', 'none', ''];
+
+      const season =
+        seasonEntity &&
+        !unavailable.includes(String(seasonEntity.state).toLowerCase())
+          ? seasonEntity.state
+          : new Date().getFullYear();
+
+      const raceName =
+        race &&
+        !unavailable.includes(String(race.state).toLowerCase()) &&
+        race.state !== 'No race scheduled'
+          ? race.state
+          : 'Nästa Grand Prix';
+
+      const a = race?.attributes || {};
+      const circuit = a.circuit || '';
+      const country = a.country || '';
+      const startRaw = a.date_start || '';
+      const endRaw = a.date_end || '';
+      const sessions = Array.isArray(a.sessions) ? [...a.sessions] : [];
+
+      const currentSession =
+        sessionEntity &&
+        !unavailable.includes(String(sessionEntity.state).toLowerCase()) &&
+        sessionEntity.state !== 'None'
+          ? sessionEntity.state
+          : '';
+
+      const status =
+        statusEntity &&
+        !unavailable.includes(String(statusEntity.state).toLowerCase())
+          ? statusEntity.state
+          : '';
+
+      const statusId = statusEntity?.attributes?.session_status_id || '';
+      const remainingRaw =
+        remainingEntity &&
+        !unavailable.includes(String(remainingEntity.state).toLowerCase())
+          ? remainingEntity.state
+          : '';
+
+      const isRaceWeek = raceWeek?.state === 'on';
+
+      function parseWallTime(raw) {
+        const m = String(raw || '').match(
+          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/
+        );
+        if (!m) return null;
+        return {
+          year: Number(m[1]),
+          month: Number(m[2]),
+          day: Number(m[3]),
+          hour: Number(m[4]),
+          minute: Number(m[5])
+        };
+      }
+
+      function wallDate(raw) {
+        const p = parseWallTime(raw);
+        if (!p) return null;
+        return new Date(p.year, p.month - 1, p.day, p.hour, p.minute, 0, 0);
+      }
+
+      function sortable(raw) {
+        const p = parseWallTime(raw);
+        if (!p) return 0;
+        return (
+          p.year * 100000000 +
+          p.month * 1000000 +
+          p.day * 10000 +
+          p.hour * 100 +
+          p.minute
+        );
+      }
+
+      function sessionTime(raw) {
+        const p = parseWallTime(raw);
+        if (!p) return '';
+        return `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`;
+      }
+
+      sessions.sort((x, y) => sortable(x.date) - sortable(y.date));
+
+      function sessionKey(value) {
+        const v = String(value || '').trim().toUpperCase();
+        if (v === 'RAC') return 'RACE';
+        if (v === 'SPR') return 'SPRINT';
+        if (v === 'PR') return 'PRACTICE';
+        if (v === 'WUP') return 'WARM UP';
+        return v;
+      }
+
+      const isLive =
+        currentSession &&
+        (
+          status === 'In Progress' ||
+          ['I', 'S'].includes(statusId)
+        );
+
+      const now = new Date();
+      const nowSortable =
+        now.getFullYear() * 100000000 +
+        (now.getMonth() + 1) * 1000000 +
+        now.getDate() * 10000 +
+        now.getHours() * 100 +
+        now.getMinutes();
+
+      let nextSession = null;
+
+      if (isLive && currentSession) {
+        const currentKey = sessionKey(currentSession);
+        const currentIndex = sessions.findIndex(
+          s => sessionKey(s.name) === currentKey
+        );
+        if (currentIndex >= 0 && currentIndex + 1 < sessions.length) {
+          nextSession = sessions[currentIndex + 1];
+        }
+      }
+
+      if (!nextSession) {
+        nextSession = sessions.find(s => sortable(s.date) > nowSortable) || null;
+      }
+
+      function formatRemaining(value) {
+        const seconds = Number(value);
+        if (!Number.isFinite(seconds) || seconds < 0) return '';
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${minutes}:${String(secs).padStart(2, '0')}`;
+      }
+
+      function formatUntil(raw) {
+        const target = wallDate(raw);
+        if (!target) return '';
+        const diff = target.getTime() - Date.now();
+        if (diff <= 0) return 'NU';
+        const totalMinutes = Math.ceil(diff / 60000);
+        if (totalMinutes < 60) return `OM ${totalMinutes} MIN`;
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        if (hours < 24) {
+          if (minutes === 0) return `OM ${hours} H`;
+          return `OM ${hours} H ${minutes} MIN`;
+        }
+        return `OM ${Math.floor(hours / 24)} D`;
+      }
+
+      const monthNames = [
+        'jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'
+      ];
+
+      function parseDateOnly(raw) {
+        const m = String(raw || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return null;
+        return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
+      }
+
+      function dateRange(start, end) {
+        const s = parseDateOnly(start);
+        const e = parseDateOnly(end);
+        if (!s) return '';
+        if (!e) return `${s.day} ${monthNames[s.month - 1]}`;
+        if (s.year === e.year && s.month === e.month) {
+          return `${s.day}–${e.day} ${monthNames[s.month - 1]}`;
+        }
+        return `${s.day} ${monthNames[s.month - 1]}–${e.day} ${monthNames[e.month - 1]}`;
+      }
+
+      function countryFlag(name) {
+        const n = String(name || '').toLowerCase();
+        if (n.includes('san marino')) return '🇸🇲';
+        if (n.includes('italy')) return '🇮🇹';
+        if (n.includes('spain')) return '🇪🇸';
+        if (n.includes('france')) return '🇫🇷';
+        if (n.includes('germany')) return '🇩🇪';
+        if (n.includes('netherlands')) return '🇳🇱';
+        if (n.includes('austria')) return '🇦🇹';
+        if (n.includes('portugal')) return '🇵🇹';
+        if (n.includes('great britain')) return '🇬🇧';
+        if (n.includes('qatar')) return '🇶🇦';
+        if (n.includes('japan')) return '🇯🇵';
+        if (n.includes('indonesia')) return '🇮🇩';
+        if (n.includes('thailand')) return '🇹🇭';
+        if (n.includes('malaysia')) return '🇲🇾';
+        if (n.includes('australia')) return '🇦🇺';
+        if (n.includes('argentina')) return '🇦🇷';
+        if (n.includes('brazil')) return '🇧🇷';
+        if (n.includes('united states')) return '🇺🇸';
+        return '🌍';
+      }
+
+      let sessionRow = '';
+
+      if (isLive) {
+        const remaining = formatRemaining(remainingRaw);
+        sessionRow = `
+          <div class="session-row live-session">
+            <div class="session-left">
+              <span class="live-dot"></span>
+              <span class="session-label live-label">LIVE</span>
+              <strong>${currentSession}</strong>
+            </div>
+            <span class="session-right live-text">
+              ${remaining ? `${remaining} KVAR` : 'PÅGÅR'}
+            </span>
+          </div>
+        `;
+      } else if (nextSession) {
+        sessionRow = `
+          <div class="session-row">
+            <div class="session-left">
+              <span class="session-label">NÄSTA</span>
+              <strong>${nextSession.name}</strong>
+            </div>
+            <div class="next-right">
+              <span class="next-time">${sessionTime(nextSession.date)}</span>
+              <span class="next-countdown">${formatUntil(nextSession.date)}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="motogp-header">
+          <div class="top-row">
+            <div class="brand">
+              <span class="flag">🏁</span>
+              <span class="brand-name">MotoGP ${season}</span>
+            </div>
+            ${isRaceWeek ? '<span class="badge race-week">RACE WEEK</span>' : ''}
+          </div>
+
+          <div class="race-name">${raceName}</div>
+
+          <div class="race-meta">
+            ${circuit ? `<span>🏟️ ${circuit}</span>` : ''}
+            ${country ? `<span>${countryFlag(country)} ${country}</span>` : ''}
+            ${dateRange(startRaw, endRaw) ? `<span>📅 ${dateRange(startRaw, endRaw)}</span>` : ''}
+          </div>
+
+          ${sessionRow}
+        </div>
+      `;
+    ]]]
+
+styles:
+  card:
+    - padding: 0
+    - border-radius: 16px
+    - overflow: hidden
+
+  custom_fields:
+    content:
+      - width: 100%
+
+extra_styles: |
+  .motogp-header {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 13px 15px 10px;
+  }
+
+  .top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .flag { font-size: 17px; }
+
+  .brand-name {
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  .badge {
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 8px;
+    font-weight: 900;
+  }
+
+  .race-week {
+    color: #e10600;
+    background: rgba(225, 6, 0, .13);
+  }
+
+  .race-name {
+    margin-top: 3px;
+    color: #e10600;
+    font-size: 14px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .race-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--secondary-text-color);
+  }
+
+  .session-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding-top: 7px;
+    border-top: 1px solid var(--divider-color);
+  }
+
+  .session-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .session-left strong {
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .session-label {
+    font-size: 8px;
+    font-weight: 900;
+    color: var(--secondary-text-color);
+    letter-spacing: .6px;
+  }
+
+  .session-right {
+    font-size: 9px;
+    font-weight: 900;
+  }
+
+  .next-right {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .next-time {
+    font-size: 9px;
+    font-weight: 900;
+    color: #d97706;
+  }
+
+  .next-countdown {
+    padding: 2px 5px;
+    border-radius: 999px;
+    font-size: 7px;
+    font-weight: 900;
+    color: #d97706;
+    background: rgba(245,158,11,.12);
+  }
+
+  .live-label,
+  .live-text { color: #e10600; }
+
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #e10600;
+    box-shadow:
+      0 0 0 3px rgba(225,6,0,.10),
+      0 0 7px rgba(225,6,0,.65);
+    animation: motogp-live-pulse 1.3s infinite;
+  }
+
+  @keyframes motogp-live-pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: .35; }
+  }
