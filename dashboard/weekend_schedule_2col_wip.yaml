@@ -1,0 +1,424 @@
+type: custom:button-card
+show_icon: false
+show_name: false
+
+triggers_update:
+  - sensor.motogp_next_race
+  - sensor.motogp_current_session
+  - sensor.motogp_session_status
+  - sensor.time
+
+custom_fields:
+  schedule: |
+    [[[
+      const race =
+        states['sensor.motogp_next_race'];
+
+      const currentEntity =
+        states['sensor.motogp_current_session'];
+
+      const statusEntity =
+        states['sensor.motogp_session_status'];
+
+      const sessions =
+        Array.isArray(race?.attributes?.sessions)
+          ? [...race.attributes.sessions]
+          : [];
+
+      if (!sessions.length) {
+        return `
+          <div class="head">
+            🗓️ Helgens schema
+          </div>
+        `;
+      }
+
+      function parseWall(raw) {
+        const m = String(raw || '').match(
+          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/
+        );
+        if (!m) return null;
+        return {
+          y: Number(m[1]),
+          m: Number(m[2]),
+          d: Number(m[3]),
+          h: Number(m[4]),
+          min: Number(m[5])
+        };
+      }
+
+      function sortValue(raw) {
+        const p = parseWall(raw);
+        if (!p) return 0;
+        return (
+          p.y * 100000000 +
+          p.m * 1000000 +
+          p.d * 10000 +
+          p.h * 100 +
+          p.min
+        );
+      }
+
+      function asDate(raw) {
+        const p = parseWall(raw);
+        if (!p) return null;
+        return new Date(p.y, p.m - 1, p.d, p.h, p.min, 0, 0);
+      }
+
+      function displayTime(raw) {
+        const p = parseWall(raw);
+        if (!p) return '';
+        return (
+          String(p.h).padStart(2,'0') +
+          ':' +
+          String(p.min).padStart(2,'0')
+        );
+      }
+
+      sessions.sort((a,b) => sortValue(a.date) - sortValue(b.date));
+
+      function sessionKey(value) {
+        const v = String(value || '').trim().toUpperCase();
+        if (v === 'RAC') return 'RACE';
+        if (v === 'SPR') return 'SPRINT';
+        if (v === 'PR') return 'PRACTICE';
+        if (v === 'WUP') return 'WARM UP';
+        return v;
+      }
+
+      const current = currentEntity?.state || '';
+      const status = statusEntity?.state || '';
+      const statusId = statusEntity?.attributes?.session_status_id || '';
+
+      const isLive =
+        current &&
+        (
+          status === 'In Progress' ||
+          ['I','S'].includes(statusId)
+        );
+
+      const liveKey = isLive ? sessionKey(current) : '';
+
+      const now = new Date();
+      const nowValue =
+        now.getFullYear() * 100000000 +
+        (now.getMonth()+1) * 1000000 +
+        now.getDate() * 10000 +
+        now.getHours() * 100 +
+        now.getMinutes();
+
+      let next = null;
+
+      if (isLive) {
+        const i = sessions.findIndex(s => sessionKey(s.name) === liveKey);
+        if (i >= 0 && i + 1 < sessions.length) {
+          next = sessions[i+1];
+        }
+      }
+
+      if (!next) {
+        next = sessions.find(s => sortValue(s.date) > nowValue) || null;
+      }
+
+      function until(raw) {
+        const d = asDate(raw);
+        if (!d) return '';
+        const diff = d.getTime() - Date.now();
+        if (diff <= 0) return 'NU';
+
+        const mins = Math.ceil(diff / 60000);
+        if (mins < 60) return `${mins} min`;
+
+        const hours = Math.floor(mins / 60);
+        const minutes = mins % 60;
+
+        if (hours < 24) {
+          if (!minutes) return `${hours} h`;
+          return `${hours} h ${minutes} min`;
+        }
+
+        return `${Math.floor(hours / 24)} d`;
+      }
+
+      const weekdays = [
+        'SÖNDAG','MÅNDAG','TISDAG','ONSDAG','TORSDAG','FREDAG','LÖRDAG'
+      ];
+
+      const months = [
+        'JAN','FEB','MAR','APR','MAJ','JUN','JUL','AUG','SEP','OKT','NOV','DEC'
+      ];
+
+      function dayTitle(raw) {
+        const p = parseWall(raw);
+        if (!p) return '';
+        const d = new Date(p.y, p.m - 1, p.d);
+        return `${weekdays[d.getDay()]} ${p.d} ${months[p.m-1]}`;
+      }
+
+      function dayKey(raw) {
+        const p = parseWall(raw);
+        if (!p) return '';
+        return `${p.y}-${p.m}-${p.d}`;
+      }
+
+      function temperature(value) {
+        const text = String(value ?? '');
+        const match = text.match(/-?\d+(?:[.,]\d+)?/);
+        if (!match) return '';
+        const number = Number(match[0].replace(',','.'));
+        if (!Number.isFinite(number) || number === 0) return '';
+        return `${match[0]}°`;
+      }
+
+      function weather(s) {
+        const air = temperature(s.air);
+        const track = temperature(s.ground);
+        const bits = [];
+        if (air) bits.push(`Luft ${air}`);
+        if (track) bits.push(`Bana ${track}`);
+        if (!bits.length) return '';
+        return `<div class="weather">${bits.join(' · ')}</div>`;
+      }
+
+      const groups = [];
+
+      for (const s of sessions) {
+        const k = dayKey(s.date);
+        let group = groups.find(g => g.key === k);
+        if (!group) {
+          group = { key: k, title: dayTitle(s.date), sessions: [] };
+          groups.push(group);
+        }
+        group.sessions.push(s);
+      }
+
+      function sessionState(s) {
+        const k = sessionKey(s.name);
+
+        if (liveKey && k === liveKey) {
+          return `<span class="badge live">LIVE</span>`;
+        }
+
+        if (next && s.id === next.id) {
+          return `<span class="badge next">${until(s.date)}</span>`;
+        }
+
+        const finished =
+          String(s.status || '').toUpperCase() === 'FINISHED';
+        const passed = sortValue(s.date) < nowValue;
+
+        if (finished || passed) {
+          return `<ha-icon class="done" icon="mdi:check"></ha-icon>`;
+        }
+
+        return '';
+      }
+
+      const body = groups.map(group => {
+        const tiles = group.sessions.map(s => {
+          const k = sessionKey(s.name);
+          const tileIsLive = liveKey && k === liveKey;
+          const tileIsNext = !tileIsLive && next && s.id === next.id;
+          const cls = tileIsLive ? 'live-tile' : (tileIsNext ? 'next-tile' : '');
+
+          return `
+            <div class="session-tile ${cls}">
+              <div class="tile-top">
+                <span class="time">${displayTime(s.date)}</span>
+                <span class="state">${sessionState(s)}</span>
+              </div>
+              <div class="session-name">${s.name}</div>
+              ${weather(s)}
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="day-block">
+            <div class="day-title">${group.title}</div>
+            <div class="session-grid">${tiles}</div>
+          </div>
+        `;
+      }).join('');
+
+      let right = '';
+
+      if (isLive) {
+        right = `<span class="head-live">● ${current} LIVE</span>`;
+      } else if (next) {
+        right = `
+          <span class="head-next">
+            Nästa: ${next.name} · ${displayTime(next.date)} · ${until(next.date)}
+          </span>
+        `;
+      }
+
+      return `
+        <div class="schedule">
+          <div class="head">
+            <strong>🗓️ Helgens schema</strong>
+            ${right}
+          </div>
+          ${body}
+        </div>
+      `;
+    ]]]
+
+styles:
+  grid:
+    - grid-template-areas: '"schedule"'
+    - grid-template-columns: 100%
+    - grid-template-rows: auto
+
+  card:
+    - padding: 0
+    - border-radius: 16px
+    - overflow: hidden
+    - width: 100%
+
+  custom_fields:
+    schedule:
+      - grid-area: schedule
+      - width: 100%
+      - min-width: 0
+      - justify-self: stretch
+      - align-self: stretch
+
+extra_styles: |
+  :host {
+    width: 100%;
+    display: block;
+  }
+
+  .schedule {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+  }
+
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 36px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--divider-color);
+  }
+
+  .head strong {
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .head-next {
+    font-size: 8px;
+    font-weight: 700;
+    color: var(--secondary-text-color);
+  }
+
+  .head-live {
+    font-size: 8px;
+    font-weight: 900;
+    color: #e10600;
+  }
+
+  .day-block + .day-block {
+    border-top: 1px solid rgba(127,127,127,.10);
+  }
+
+  .day-title {
+    padding: 7px 12px 4px;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .7px;
+    color: var(--secondary-text-color);
+  }
+
+  .session-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 5px;
+    padding: 0 9px 7px;
+  }
+
+  .session-tile {
+    position: relative;
+    min-width: 0;
+    min-height: 44px;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    border: 1px solid rgba(127,127,127,.10);
+    border-radius: 9px;
+    background: rgba(127,127,127,.025);
+  }
+
+  .tile-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  .time {
+    font-size: 10px;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .session-name {
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 900;
+  }
+
+  .weather {
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 7px;
+    color: var(--secondary-text-color);
+  }
+
+  .next-tile {
+    border-color: rgba(245,158,11,.30);
+    background: rgba(245,158,11,.055);
+  }
+
+  .live-tile {
+    border-color: rgba(225,6,0,.30);
+    background: rgba(225,6,0,.055);
+  }
+
+  .badge {
+    padding: 1px 5px;
+    border-radius: 999px;
+    font-size: 7px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .badge.next {
+    color: #d97706;
+    background: rgba(245,158,11,.14);
+  }
+
+  .badge.live {
+    color: #e10600;
+    background: rgba(225,6,0,.13);
+  }
+
+  .done {
+    --mdc-icon-size: 12px;
+    opacity: .45;
+    color: var(--secondary-text-color);
+  }
+
+  @media (max-width: 350px) {
+    .session-grid {
+      grid-template-columns: 1fr;
+    }
+  }
