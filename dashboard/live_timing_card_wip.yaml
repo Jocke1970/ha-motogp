@@ -1,0 +1,727 @@
+type: custom:button-card
+show_icon: false
+show_name: false
+
+triggers_update:
+  - sensor.motogp_rider_positions
+  - sensor.motogp_current_session
+  - sensor.motogp_session_status
+  - sensor.motogp_race_lap_count
+  - sensor.motogp_session_time_remaining
+  - sensor.motogp_pit_stops
+
+custom_fields:
+  timing: |
+    [[[
+      const posEntity =
+        states['sensor.motogp_rider_positions'];
+
+      const sessionEntity =
+        states['sensor.motogp_current_session'];
+
+      const statusEntity =
+        states['sensor.motogp_session_status'];
+
+      const lapEntity =
+        states['sensor.motogp_race_lap_count'];
+
+      const remainEntity =
+        states['sensor.motogp_session_time_remaining'];
+
+
+      /* ===============================================================
+       * DATA
+       * ============================================================= */
+
+      const riders =
+        Array.isArray(posEntity?.attributes?.riders)
+          ? [...posEntity.attributes.riders]
+          : [];
+
+      const session =
+        sessionEntity &&
+        !['unknown', 'unavailable', 'None'].includes(
+          sessionEntity.state
+        )
+          ? sessionEntity.state
+          : 'Timing';
+
+      const status =
+        statusEntity?.state || '';
+
+      const statusId =
+        statusEntity?.attributes?.session_status_id || '';
+
+      const isLive =
+        status === 'In Progress' ||
+        ['I', 'S'].includes(statusId);
+
+
+      /* ===============================================================
+       * STATUS
+       * ============================================================= */
+
+      let statusText = '';
+
+      if (isLive) {
+        statusText = 'LIVE';
+      } else {
+        statusText = {
+          N: 'VÄNTAR',
+          F: 'AVSLUTAD',
+          R: 'RÖD FLAGG',
+          D: 'FÖRSENAD',
+          C: 'INSTÄLLD'
+        }[statusId] || {
+          'Not Started': 'VÄNTAR',
+          'Finished': 'AVSLUTAD',
+          'Red Flag': 'RÖD FLAGG',
+          'Delayed': 'FÖRSENAD',
+          'Cancelled': 'INSTÄLLD'
+        }[status] || 'Ingen aktiv session';
+      }
+
+
+      /* ===============================================================
+       * TID
+       * ============================================================= */
+
+      function formatSeconds(value) {
+        const seconds = Number(value);
+
+        if (
+          !Number.isFinite(seconds) ||
+          seconds < 0
+        ) {
+          return '';
+        }
+
+        const minutes =
+          Math.floor(seconds / 60);
+
+        const secs =
+          Math.floor(seconds % 60);
+
+        return (
+          `${minutes}:` +
+          `${String(secs).padStart(2, '0')}`
+        );
+      }
+
+      const remainingSeconds =
+        Number(remainEntity?.state);
+
+      const remaining =
+        Number.isFinite(remainingSeconds) &&
+        remainingSeconds > 0
+          ? formatSeconds(remainingSeconds)
+          : '';
+
+
+      /* ===============================================================
+       * VARV
+       * ============================================================= */
+
+      const lap =
+        lapEntity &&
+        !['unknown', 'unavailable'].includes(
+          lapEntity.state
+        )
+          ? Number(lapEntity.state)
+          : 0;
+
+      const totalLaps =
+        Number(
+          lapEntity?.attributes?.num_laps ||
+          posEntity?.attributes?.num_laps ||
+          0
+        );
+
+
+      /* ===============================================================
+       * TEAMFÄRGER
+       * ============================================================= */
+
+      function teamColor(team, bike) {
+        const x =
+          `${team || ''} ${bike || ''}`.toLowerCase();
+
+        if (x.includes('gresini'))
+          return '#60a5fa';
+
+        if (x.includes('vr46'))
+          return '#facc15';
+
+        if (x.includes('ktm'))
+          return '#f97316';
+
+        if (x.includes('yamaha'))
+          return '#2563eb';
+
+        if (x.includes('honda'))
+          return '#ef4444';
+
+        if (x.includes('aprilia'))
+          return '#64748b';
+
+        if (x.includes('ducati'))
+          return '#e10600';
+
+        return '#94a3b8';
+      }
+
+
+      /* ===============================================================
+       * SORTERING
+       * ============================================================= */
+
+      const classified = riders
+        .filter(r => Number(r.position) > 0)
+        .sort(
+          (a, b) =>
+            Number(a.position) -
+            Number(b.position)
+        );
+
+      const unclassified =
+        riders.filter(
+          r => Number(r.position) <= 0
+        );
+
+      const ordered = [
+        ...classified,
+        ...unclassified
+      ];
+
+
+      /* ===============================================================
+       * HEADER
+       * ============================================================= */
+
+      let rightInfo = '';
+
+      if (isLive) {
+
+        const pieces = [];
+
+        if (lap > 0) {
+          pieces.push(
+            totalLaps > 0
+              ? `Varv ${lap} / ${totalLaps}`
+              : `Varv ${lap}`
+          );
+        }
+
+        if (remaining) {
+          pieces.push(
+            `${remaining} kvar`
+          );
+        }
+
+        rightInfo = pieces
+          .map(
+            x => `<span>${x}</span>`
+          )
+          .join('');
+
+      } else {
+
+        /*
+         * Före start är "remaining" sessionens
+         * längd, inte tid till start.
+         */
+        if (remaining) {
+          rightInfo = `
+            <span>
+              ${remaining} session
+            </span>
+          `;
+        }
+      }
+
+      const topbar = `
+        <div class="timing-head">
+
+          <div>
+
+            <div class="timing-title">
+
+              ${
+                isLive
+                  ? '<span class="live-dot"></span>'
+                  : ''
+              }
+
+              ${session}
+
+            </div>
+
+            <div class="
+              timing-status
+              ${isLive ? 'status-live' : ''}
+            ">
+              ${statusText}
+            </div>
+
+          </div>
+
+          <div class="timing-info">
+            ${rightInfo}
+          </div>
+
+        </div>
+      `;
+
+
+      /* ===============================================================
+       * TOM LISTA
+       * ============================================================= */
+
+      if (!ordered.length) {
+        return `
+          ${topbar}
+
+          <div class="timing-empty">
+
+            <ha-icon
+              icon="mdi:motorbike-off"
+            ></ha-icon>
+
+            <div>
+              <strong>
+                Ingen live timing just nu
+              </strong>
+
+              <span>
+                Förare visas när timing-feeden
+                innehåller positionsdata.
+              </span>
+            </div>
+
+          </div>
+        `;
+      }
+
+
+      /* ===============================================================
+       * FÖRARE
+       * ============================================================= */
+
+      const rows =
+        ordered.map(r => {
+
+          const p =
+            Number(r.position);
+
+          const validPosition =
+            p > 0;
+
+          const position =
+            validPosition
+              ? p
+              : '—';
+
+          const name =
+            r.surname ||
+            r.shortname ||
+            r.firstname ||
+            '?';
+
+          const number =
+            r.number
+              ? `#${r.number}`
+              : '';
+
+          const team =
+            r.team || '';
+
+          const bike =
+            r.bike || '';
+
+          const gap =
+            p === 1
+              ? 'LEADER'
+              : (r.gap_first || '');
+
+          const lastLap =
+            r.last_lap_time &&
+            r.last_lap_time !== '0.000'
+              ? r.last_lap_time
+              : '';
+
+          const pit =
+            r.on_pit
+              ? `
+                <span class="pit">
+                  PIT
+                </span>
+              `
+              : '';
+
+          const riderStatus =
+            !validPosition &&
+            r.status_name
+              ? `
+                <span class="r-status">
+                  ${r.status_name}
+                </span>
+              `
+              : '';
+
+          const color =
+            teamColor(team, bike);
+
+          return `
+            <div class="
+              timing-row
+              ${
+                validPosition
+                  ? ''
+                  : 'unclassified'
+              }
+            ">
+
+              <div class="position p${p}">
+                ${position}
+              </div>
+
+              <div
+                class="teamline"
+                style="background:${color}"
+              ></div>
+
+              <div class="rider">
+
+                <div class="rider-top">
+
+                  <span class="rider-name">
+                    ${name}
+                  </span>
+
+                  ${pit}
+
+                  ${riderStatus}
+
+                </div>
+
+                <div class="rider-bottom">
+
+                  ${
+                    number
+                      ? `<span>${number}</span>`
+                      : ''
+                  }
+
+                  ${
+                    bike
+                      ? `<span>${bike}</span>`
+                      : ''
+                  }
+
+                  ${
+                    team
+                      ? `<span>${team}</span>`
+                      : ''
+                  }
+
+                </div>
+
+              </div>
+
+              <div class="lap">
+                ${lastLap}
+              </div>
+
+              <div class="gap">
+                ${gap}
+              </div>
+
+            </div>
+          `;
+        }).join('');
+
+
+      return `
+        ${topbar}
+
+        <div class="timing-list">
+          ${rows}
+        </div>
+      `;
+    ]]]
+
+styles:
+  grid:
+    - grid-template-areas: '"timing"'
+    - grid-template-columns: 100%
+    - grid-template-rows: auto
+
+  card:
+    - padding: 0
+    - border-radius: 16px
+    - overflow: hidden
+    - width: 100%
+
+  custom_fields:
+    timing:
+      - grid-area: timing
+      - width: 100%
+      - min-width: 0
+      - justify-self: stretch
+      - align-self: stretch
+
+extra_styles: |
+  :host {
+    width: 100%;
+    display: block;
+  }
+
+  .timing-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 10px 13px 8px;
+
+    border-bottom:
+      1px solid var(--divider-color);
+  }
+
+  .timing-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .timing-status {
+    margin-top: 1px;
+
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .8px;
+
+    color:
+      var(--secondary-text-color);
+  }
+
+  .status-live {
+    color: #e10600;
+  }
+
+  .timing-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+
+    font-size: 9px;
+    font-weight: 600;
+
+    color:
+      var(--secondary-text-color);
+  }
+
+  .live-dot {
+    width: 7px;
+    height: 7px;
+
+    border-radius: 50%;
+
+    background: #e10600;
+
+    box-shadow:
+      0 0 7px rgba(225,6,0,.7);
+
+    animation:
+      mgp-pulse 1.3s infinite;
+  }
+
+  @keyframes mgp-pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: .35; }
+  }
+
+  .timing-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .timing-row {
+    display: grid;
+
+    grid-template-columns:
+      28px
+      4px
+      minmax(0,1fr)
+      68px
+      64px;
+
+    align-items: center;
+
+    min-height: 44px;
+
+    padding: 2px 10px;
+
+    border-bottom:
+      1px solid rgba(127,127,127,.08);
+  }
+
+  .timing-row:last-child {
+    border-bottom: none;
+  }
+
+  .timing-row.unclassified {
+    opacity: .55;
+  }
+
+  .position {
+    text-align: center;
+
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .position.p1 {
+    color: #facc15;
+  }
+
+  .position.p2 {
+    color: #d1d5db;
+  }
+
+  .position.p3 {
+    color: #d97706;
+  }
+
+  .teamline {
+    width: 3px;
+    height: 28px;
+
+    border-radius: 99px;
+  }
+
+  .rider {
+    min-width: 0;
+    padding-left: 8px;
+  }
+
+  .rider-top {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .rider-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .rider-bottom {
+    display: flex;
+    gap: 5px;
+
+    overflow: hidden;
+    white-space: nowrap;
+
+    margin-top: 1px;
+
+    font-size: 8px;
+
+    color:
+      var(--secondary-text-color);
+  }
+
+  .pit {
+    padding: 1px 4px;
+
+    border-radius: 4px;
+
+    font-size: 7px;
+    font-weight: 900;
+
+    color: #f59e0b;
+
+    background:
+      rgba(245,158,11,.14);
+  }
+
+  .r-status {
+    font-size: 7px;
+
+    color:
+      var(--secondary-text-color);
+  }
+
+  .lap,
+  .gap {
+    text-align: right;
+
+    font-size: 10px;
+    font-weight: 700;
+
+    font-variant-numeric:
+      tabular-nums;
+  }
+
+  .lap {
+    color:
+      var(--secondary-text-color);
+  }
+
+  .gap {
+    color: #94a3b8;
+  }
+
+  .timing-row:first-child .gap {
+    color: #e10600;
+
+    font-size: 8px;
+    font-weight: 900;
+  }
+
+  .timing-empty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 15px 13px;
+  }
+
+  .timing-empty div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .timing-empty strong {
+    font-size: 12px;
+  }
+
+  .timing-empty span {
+    font-size: 9px;
+
+    color:
+      var(--secondary-text-color);
+  }
+
+  @media (max-width: 520px) {
+
+    .timing-row {
+      grid-template-columns:
+        26px
+        3px
+        minmax(0,1fr)
+        55px;
+    }
+
+    .lap {
+      display: none;
+    }
+  }
