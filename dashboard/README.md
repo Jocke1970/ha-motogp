@@ -6,9 +6,9 @@ The files are intentionally marked as **WIP**. They represent the latest saved v
 
 Current prototypes:
 
+- `event_header_wip.yaml` – event/race-week header with live or next-session countdown.
 - `live_timing_card_wip.yaml` – live rider timing card.
 - `weekend_schedule_2col_wip.yaml` – two-column MotoGP weekend schedule.
-- `live_and_schedule_stack_wip.yaml` – vertical stack containing both cards.
 
 ## Dependencies
 
@@ -18,4 +18,8 @@ Current prototypes:
 
 ## Important
 
-The saved schedule currently uses wall-clock parsing to avoid the observed +2 h browser conversion for Pulselive session timestamps. Category-aware LIVE matching is the next change: the MotoGP weekend schedule must not mark a MotoGP session live merely because another category (Moto2/Moto3) is running a session with the same short name.
+The saved schedule currently uses wall-clock parsing to avoid the observed +2 h browser conversion for Pulselive session timestamps.
+
+Category-aware LIVE matching is the next change: the MotoGP weekend schedule must not mark a MotoGP session live merely because another category (Moto2/Moto3) is running a session with the same short name.
+
+The three cards can be placed in a normal `vertical-stack` while testing. A final combined stack will be added once the responsive/full-width layout is locked.
