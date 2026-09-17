@@ -1,0 +1,25 @@
+name: Frontend check
+
+on:
+  push:
+    branches: [dev, beta]
+  pull_request:
+    branches: [beta, main]
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: node --check frontend/ha-motogp-card.js
+      - name: Frontend smoke tests
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-smoke.cjs
