@@ -1,15 +1,20 @@
-# Development test. Replace the TWO old vertical-stack cards in your test view;
-# do not stack this on top of the old schedule/timing cards.
-# Install frontend/ha-motogp-card.js as a Lovelace JavaScript module first.
+# Development test: keep this card visible independently of weekend_view.
+# On HA restart binary_sensor.motogp_weekend_view may temporarily be off/unavailable;
+# a Lovelace visibility condition would hide the whole card, including schedule.
+# Install frontend/ha-motogp-card.js as a JavaScript module first.
+# Replace the TWO old vertical-stack cards in your test view.
 type: custom:ha-motogp-card
 mode: both
-visibility:
-  - condition: state
-    entity: binary_sensor.motogp_weekend_view
-    state: 'on'
 grid_options:
   columns: 24
   rows: auto
+
+# If you WANT the card to disappear outside race weekends, optionally add:
+# visibility:
+#   - condition: state
+#     entity: binary_sensor.motogp_weekend_view
+#     state: 'on'
+# Note that off/unavailable/unknown will hide it, even if sessions are present.
 
 # For separate placements, use two custom cards instead:
 # type: custom:ha-motogp-card
