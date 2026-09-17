@@ -23,3 +23,7 @@ jobs:
         env:
           TZ: Europe/Stockholm
         run: node tests/frontend-smoke.cjs
+      - name: Spoiler and midnight regression
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-spoiler.cjs
