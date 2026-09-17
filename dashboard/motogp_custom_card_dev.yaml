@@ -1,0 +1,29 @@
+# Development test. Replace the TWO old vertical-stack cards in your test view;
+# do not stack this on top of the old schedule/timing cards.
+# Install frontend/ha-motogp-card.js as a Lovelace JavaScript module first.
+type: custom:ha-motogp-card
+mode: both
+visibility:
+  - condition: state
+    entity: binary_sensor.motogp_weekend_view
+    state: 'on'
+grid_options:
+  columns: 24
+  rows: auto
+
+# For separate placements, use two custom cards instead:
+# type: custom:ha-motogp-card
+# mode: schedule
+#
+# type: custom:ha-motogp-card
+# mode: timing
+#
+# Optional entity overrides when IDs differ:
+# entities:
+#   race: sensor.motogp_next_race
+#   session: sensor.motogp_current_session
+#   status: sensor.motogp_session_status
+#   riders: sensor.motogp_rider_positions
+#   laps: sensor.motogp_race_lap_count
+#   remaining: sensor.motogp_session_time_remaining
+#   category: input_select.motogp_schedule_category
