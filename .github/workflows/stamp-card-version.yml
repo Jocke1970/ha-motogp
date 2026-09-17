@@ -1,0 +1,41 @@
+name: Stamp MotoGP frontend version
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'scripts/stamp_frontend_version.py'
+
+permissions:
+  contents: write
+
+jobs:
+  stamp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify base and stamp version into the existing card
+        run: python3 scripts/stamp_frontend_version.py
+      - name: Verify JavaScript and existing UI tests
+        env:
+          TZ: Europe/Stockholm
+        run: |
+          node --check frontend/ha-motogp-card.js
+          node tests/frontend-smoke.cjs
+          node tests/frontend-spoiler.cjs
+      - name: Commit the generated dev card only if changed
+        run: |
+          if git diff --quiet -- frontend/ha-motogp-card.js; then
+            echo 'No version change needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/ha-motogp-card.js
+          git commit -m 'feat(frontend): expose embedded version and build identity'
+          git push origin HEAD:dev
