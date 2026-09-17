@@ -27,3 +27,7 @@ jobs:
         env:
           TZ: Europe/Stockholm
         run: node tests/frontend-spoiler.cjs
+      - name: Version and duplicate-resource regression
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-version.cjs
