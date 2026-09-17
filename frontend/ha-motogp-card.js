@@ -1,7 +1,21 @@
 /* ha-motogp-card · dev preview · one self-contained Lovelace resource. */
 (() => {
   const TAG = 'ha-motogp-card';
-  if (customElements.get(TAG)) return;
+  // HA_MOTOGP_BUILD_METADATA_START: embedded into the actual JS resource.
+  const CARD_BUILD = Object.freeze({
+    "version": "0.1.0-dev.3",
+    "branch": "dev",
+    "buildId": "0b493073ef59",
+    "sourceCommit": "5900b8d8a2b1937345a26ced142da5a6fa474432",
+    "builtAt": "2026-09-17 20:48 UTC"
+});
+  // HA_MOTOGP_BUILD_METADATA_END
+  if (customElements.get(TAG)) {
+    const existing = customElements.get(TAG).buildInfo;
+    console.warn('[ha-motogp-card] Already registered; cannot replace loaded card. Existing:',
+      existing || 'unknown version', 'New resource:', CARD_BUILD);
+    return;
+  }
 
   const DEFAULTS = Object.freeze({
     race: 'sensor.motogp_next_race',
@@ -167,6 +181,10 @@
       .name{font-size:12px}.num{font-size:11px}.meta{font-size:9px}
     }
     @media(max-width:360px){.tiles{grid-template-columns:1fr}}
+    .build-version{padding:7px 12px;text-align:right;font-size:10px;color:var(--secondary-text-color)}
+    .build-version button{border:0;background:transparent;color:inherit;font-size:10px;padding:3px 0}
+    .build-version button:hover{text-decoration:underline}
+    .build-details{margin-top:4px;line-height:1.6;overflow-wrap:anywhere}
   `;
 
   class HaMotogpCard extends HTMLElement {
@@ -183,6 +201,7 @@
       this._identityKey = '';
       this._today = '';
       this._timer = null;
+      this._showBuildInfo = false;
       this.shadowRoot.innerHTML = `<style>${CSS}</style><div id="view"></div>`;
       this.shadowRoot.addEventListener('click', e => this._click(e));
     }
@@ -221,8 +240,13 @@
       });
     }
     _click(e) {
-      const button = e.target.closest('button[data-day],button[data-timing]');
+      const button = e.target.closest('button[data-day],button[data-timing],button[data-build-info]');
       if (!button) return;
+      if (button.dataset.buildInfo !== undefined) {
+        this._showBuildInfo = !this._showBuildInfo;
+        this._render();
+        return;
+      }
       if (button.dataset.day !== undefined) {
         this._manualDay = this._openDay() === button.dataset.day ? '' : button.dataset.day;
       } else if (!this._spoilerOn()) {
@@ -280,7 +304,16 @@
       const content = [];
       if (this._mode !== 'timing') content.push(this._scheduleMarkup(sessions, selected, identity, now));
       if (this._mode !== 'schedule') content.push(this._timingMarkup(identity));
-      this.shadowRoot.getElementById('view').innerHTML = content.join('');
+      this.shadowRoot.getElementById('view').innerHTML = content.join('') + this._versionFooter();
+    }
+    _versionFooter() {
+      const v = CARD_BUILD;
+      const expanded = this._showBuildInfo;
+      return `<div class="build-version"><button type="button" data-build-info aria-expanded="${expanded}" ` +
+        `title="Visa inladdad frontendversion">UI v${escapeHTML(v.version)} · ${escapeHTML(v.buildId)} ${expanded ? '⌃' : 'ⓘ'}</button>` +
+        (expanded ? `<div class="build-details">Branch: ${escapeHTML(v.branch)} · ` +
+          `Källcommit: ${escapeHTML(v.sourceCommit)} · Byggd: ${escapeHTML(v.builtAt)} · ` +
+          `JS-fingeravtryck: ${escapeHTML(v.buildId)}<br>Backend-version visas separat.</div>` : '') + '</div>';
     }
     _scheduleMarkup(sessions, selected, identity, now) {
       if (!sessions.length) return `<section class="panel"><div class="head"><strong>🗓️ Helgens schema</strong>` +
@@ -381,7 +414,10 @@
     getCardSize() { return this._mode === 'timing' ? 5 : 4; }
     getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 4 }; }
   }
+  HaMotogpCard.buildInfo = CARD_BUILD;
   customElements.define(TAG, HaMotogpCard);
+  window.haMotogpBuild = CARD_BUILD;
+  console.info('[ha-motogp-card] Loaded frontend', CARD_BUILD);
   window.customCards = window.customCards || [];
   window.customCards.push({ type: TAG, name: 'MotoGP Card (dev)', description: 'Schema och timing med lokala expanders.' });
 })();
