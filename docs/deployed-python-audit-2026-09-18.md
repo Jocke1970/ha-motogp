@@ -2,22 +2,15 @@
 
 ## Verified snapshot
 
-The user exported `motogp_source_review.zip` from `/config/custom_components/motogp_sensor` at 2026-09-18 19:24 CEST. ZIP is 28,424 bytes, contains 13 Python files, `manifest.json` and `INVENTORY.txt`. ZIP integrity, all 14 inventory SHA-256 hashes and Python syntax checks passed. Installed manifest version is **1.0.9**. A search for obvious embedded literal credentials produced no flagged matches; this is not a comprehensive security audit.
+The user exported `motogp_source_review.zip` from `/config/custom_components/motogp_sensor` at 2026-09-18 19:24 CEST. The 28,424-byte ZIP contains 13 Python files, `manifest.json` and `INVENTORY.txt`. ZIP integrity, all 14 SHA-256 checksums and 13 Python syntax checks passed. The installed manifest declares **v1.0.9**. An obvious-literal-secret scan found no flagged matches; that is not a complete security audit.
 
-**Source sync subsequently completed:** the guarded HA sync script validated that the archive still matched live HA files and pushed all 14 source files plus inventory to GitHub [`backend/deployed/v1.0.9/`](../backend/deployed/v1.0.9/) in commit [`0c66663`](https://github.com/Jocke1970/ha-motogp/commit/0c66663aff1ee7db30de136b064941964791219f). GitHub independently shows `dev` at that commit; [source-integrity CI](https://github.com/Jocke1970/ha-motogp/actions/runs/35378743131) passed checksums, inventory and Python syntax on the committed files. This is a **snapshot of source at export time**, not automatic HA↔GitHub sync and not deployment/runtime validation. The running integration was not modified by the sync.
+**Exact source sync is complete as of capture:** the guarded HA sync script confirmed that ZIP contents matched the then-running integration, committed all 14 sources plus inventory to [`backend/deployed/v1.0.9/`](../backend/deployed/v1.0.9/) on `dev` in [`0c66663`](https://github.com/Jocke1970/ha-motogp/commit/0c66663aff1ee7db30de136b064941964791219f), and verified the remote branch. [Source-integrity CI passed](https://github.com/Jocke1970/ha-motogp/actions/runs/35378743131). No running HA integration files were changed. Snapshot is not an automatic continuous sync or a tested deployable release.
 
-## Exact upstream comparison
+## Upstream comparison
 
-Each exported file's Git blob SHA was compared to official upstream `Liionboy/motogp_sensor` tag `v1.0.9`:
+Each of the 14 files was compared via Git blob SHA to upstream `Liionboy/motogp_sensor` tag v1.0.9. Nine were byte-identical: `__init__.py`, `binary_sensor.py`, `calendar.py`, `config_flow.py`, `device_trigger.py`, `entity.py`, `manifest.json`, `select.py`, `switch.py`. Five files contained local changes:
 
-| Result | Files |
-| --- | --- |
-| Nine byte-identical | `__init__.py`, `binary_sensor.py`, `calendar.py`, `config_flow.py`, `device_trigger.py`, `entity.py`, `manifest.json`, `select.py`, `switch.py` |
-| Five locally modified | `api.py`, `const.py`, `coordinator.py`, `helpers.py`, `sensor.py` |
-
-Local SHA-256 hashes:
-
-| File | Installed SHA-256 |
+| File | Captured SHA-256 |
 | --- | --- |
 | `api.py` | `6abdc1cd4a4065044fd1728e3ead2a055215c9b62e75d5b7ad4b839f1950e081` |
 | `const.py` | `a5efe7b6b4691580031216cfb2a3fe3ee1cf488de8934d70fef5e8f76eacf49f` |
@@ -25,25 +18,28 @@ Local SHA-256 hashes:
 | `helpers.py` | `71c8a4a392019cec7baf5f0447d0b6a83c6688cac3f787a34b31236470887523` |
 | `sensor.py` | `aa11653b791919f32a72b702b474ce04bbd729494d1e5b74b6bf29f2b5f42862` |
 
-All 14 exact source hashes are in the committed [`INVENTORY.txt`](../backend/deployed/v1.0.9/INVENTORY.txt). The older `scripts/patch_motogp_sensor_v1_0_10.sh` applies to a different upstream baseline; do not execute or force against customized live 1.0.9.
+All fourteen hashes are in tracked [`INVENTORY.txt`](../backend/deployed/v1.0.9/INVENTORY.txt). The historic `scripts/patch_motogp_sensor_v1_0_10.sh` expects **another upstream baseline** and must not be forced onto captured 1.0.9.
 
-## Deployed features identified by source inspection
+## Features found in installed source
 
-- `api.py`: `async_get_grid(event_uuid, category_uuid)` in addition to official per-session `async_get_classification`; the latter alone does not implement a persistent history viewer.
-- `const.py`: status `S` active, active polling 5 seconds, grid/records refresh 5 minutes, weather refresh 60 seconds, grid URL. User-Agent string says 1.0.4 but manifest says 1.0.9.
-- `helpers.py`: richer live event/session identity, class/championship metadata, track and rider/status fields.
-- `coordinator.py`: coherent TV-delay snapshot ring buffer with `input_number.motogp_tv_delay_seconds` constrained to 0–300 s, multicategory schedule (`weekend_sessions_all`), weather/grid/records, postrace event advancement.
-- `sensor.py`: `sessions_all` and categories, season calendar, grid/records, in-memory session lap history and fastest lap from exposed snapshots, shared delay metadata.
+- `api.py`: per-session official `async_get_classification` and extra `async_get_grid(event_uuid, category_uuid)`. No persistent historical archive is installed.
+- `const.py`: active PulseLive status `S`; 5-second active polling, 5-minute grid/records refresh, 60-second weather refresh and corrected grid URL. User-Agent string remains 1.0.4 while manifest declares 1.0.9.
+- `helpers.py`: richer event/session identity, class/championship metadata, rider/track/status fields.
+- `coordinator.py`: complete-snapshot TV-delay buffer using `input_number.motogp_tv_delay_seconds` (0–300 seconds); multicategory `weekend_sessions_all`, weather/grid/records and post-race advancement.
+- `sensor.py`: `sessions_all`, category list, season calendar, grid/records, in-memory session lap history/fastest lap and delay diagnostic attributes.
 
-## Risks to verify, not established runtime failures
+## Provenance capture and review — now completed
 
-1. Postrace advancement switches `static['next_event']` before static schedule lists regenerate; a temporary header/schedule mismatch is possible until refresh.
-2. The static last-race-results sensor does not gain an automatic no-spoiler guard merely from `LIVE`-entity masking. A history API/UI needs independent checks at retrieval and display boundaries, including when async requests finish.
-3. Lap history is populated in memory when entities are read and can be partial after a late start or HA restart; do not mistake it for persisted official results.
-4. Real historic Moto2 FP1 classification availability and shape have not been confirmed. The separate [`result_archive.py`](../backend/result_archive.py) is a tested prototype, not installed.
+The second user-exported `motogp_provenance_review.zip` contains 11 historical `.sh` scripts, the active package and actual HA frontend JS (13 files, 32,062 bytes). Its ZIP integrity and member hashes were verified. Script effects were statically reviewed and the ten Python patch feature families were located in the exact committed snapshot. [Detailed per-script disposition, safety findings and cleanup gates](provenance-cleanup-2026-09-18.md). The installer regenerates the exported package exactly but overwrites it unconditionally; the active package is now tracked separately at [`config/packages/motogp_dashboard_mode.yaml`](../config/packages/motogp_dashboard_mode.yaml) with exact SHA-256 `ed6c84f274d5b7d3af638012d68b0609e2ec5ff4eeb0cd5dfe2f89c1503cc769`. Neither eleven scripts nor source ZIP were blindly committed as executable public scripts. Actual caller/reference scan on the HA host has **not yet run**; scripts have **not** been moved/deleted.
 
-## Patch provenance and rollout gate
+The actual `/config/www/ha-motogp-card.js` and tracked `frontend/ha-motogp-card.js` both label themselves `v0.1.0-dev.3` / `0b493073ef59` but have **different Git blob hashes**. Treat frontend parity as unresolved until the actual code diff/browser-loaded resource is checked. No frontend replacement was attempted.
 
-The HA sync command also generated `/config/config/motogp_provenance_review.zip` with **13 files, 32,062 bytes**. Its own output reported no missing expected scripts and no suspect secret keywords; contents have **not** been uploaded/reviewed, and a keyword scan is not a complete security check. The source ZIP did not include these scripts. Before deleting old `motogp_*.sh` scripts: inspect their contents, identify their order/side effects, check active references and credentials, reconcile against captured final code and record a reproducible install/rollback path. Preserve non-MotoGP scripts and the working HA integration.
+## Unverified behavior and release gates
 
-The captured Python is now reproducible as an exact source *snapshot* at a fixed commit. Actual deployment/test parity, patch provenance, the current legacy dashboard and HA package configuration, and the historical-results feature are separate open gates. Track them in [issue #1](https://github.com/Jocke1970/ha-motogp/issues/1). Do not promote to `beta` or `main` until tests and rollback are verified.
+1. Postrace advancement can change `static['next_event']` before statically cached schedules regenerate; a temporary header/schedule mismatch is possible and needs testing, not merely an assumption of a runtime failure.
+2. The static last-race-results entity is not masked merely by the `LIVE` no-spoiler property. Historical API and UI each need protection, including delayed async responses.
+3. In-memory lap history can be partial after late start/restart, and is not a persistent official result archive.
+4. Actual availability and response shape for a Moto2 FP1 three races ago are unverified. [`result_archive.py`](../backend/result_archive.py) is an isolated uninstalled prototype.
+5. Caller/reference scan, old seven YAML quarantine dependencies, real HA tests, install/rollback and `dev → beta → main` promotion remain open. Do not use snapshot capture as a deployment instruction or remove the working legacy dashboard.
+
+Track the work in [Issue #1](https://github.com/Jocke1970/ha-motogp/issues/1). No HA files were changed during source/provenance review.
