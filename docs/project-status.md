@@ -9,14 +9,14 @@
 ## UI
 
 - Separate Card-test JS: [`frontend/ha-motogp-card.js`](../frontend/ha-motogp-card.js), `v0.1.0-dev.3` / `0b493073ef59`, previously observed in HA; old dashboard untouched.
-- **Open drift:** exported HA `/config/www/ha-motogp-card.js` differs bytewise from GitHub `dev` despite matching version/build metadata. Compare exact diff and browser-loaded resource before any replacement; use a new unique build stamp for future changes. Existing polish items include weather placeholders and prestart/session-day presentation.
+- **File-content discrepancy RESOLVED:** the JS in the HA provenance export (26,122 bytes) differs from GitHub dev (26,123 bytes) **only by GitHub's final LF**. Appending one LF to the exported bytes yields exactly the GitHub blob SHA-1 `fef8e3e4f09d30f01385d6e8417e96ae923cb65d`. No functional source drift, no replacement or build bump needed. [Exact proof](frontend-drift-resolution-2026-09-18.md). **Separate unverified point:** actual browser-loaded resource/cache has not been independently inspected; check before subsequent deployment. Existing polish items include weather placeholders and prestart/session-day presentation.
 
 ## Patch provenance and cleanup
 
 - Reviewed the 13-file provenance export: eleven historical patch/install `.sh` scripts, active YAML package and live JS. All ten Python patch feature families appear in the captured 1.0.9 end state; source-presence is not exhaustive runtime verification. [Per-script audit](provenance-cleanup-2026-09-18.md).
 - First read-only scan checked 6,618 configuration text files and reported zero references but eight large files skipped; it correctly stopped without movement.
 - **Executed on actual HA:** hash-gated [`quarantine_motogp_patches.py`](../scripts/quarantine_motogp_patches.py) with `--apply` verified live snapshot, provenance and eleven script hashes; scanned **6,626** text files including the eight large files in chunks; found **zero filename/wildcard references**. User terminal reported **all eleven scripts moved** to `/config/.motogp_cleanup_quarantine/patch-scripts`, leaving Python, YAML, JS, backups and non-MotoGP scripts untouched. **No permanent deletion.** [Executed runbook](patch-quarantine-runbook-2026-09-18.md).
-- External cron/add-ons/manual commands outside scanned `/config` not verified. Validate normal HA/dashboard and scheduled operation and separately approve any permanent purge after checking quarantined files. The previous seven misplaced/duplicate YAML files remain quarantined under a **different cleanup gate**; user earlier observed no repair warnings, but purge/reference check is still open.
+- User knows of no external cron/add-on caller, but external invocations outside scanned `/config` cannot be conclusively ruled out. Validate normal HA/dashboard and scheduled operation and separately approve any permanent purge after checking quarantined files. The previous seven misplaced/duplicate YAML files remain quarantined under a **different cleanup gate**; user earlier observed no repair warnings, but purge/reference check is still open.
 
 ## Historical results and risks
 
@@ -25,8 +25,8 @@
 
 ## Next gates
 
-1. Validate HA and scheduled workflows after script quarantine; check external cron/add-on callers if configured. Keep the eleven scripts in quarantine pending a distinct, explicitly approved permanent deletion step.
-2. Resolve HA-versus-GitHub JS diff and loaded browser resource, then version subsequent dev builds distinctly without touching legacy dashboard.
+1. Validate HA and scheduled workflows after script quarantine. Keep the eleven scripts in quarantine pending a distinct, explicitly approved permanent deletion step.
+2. Verify browser-loaded Lovelace resource/cache before the next dev deployment; any future functional frontend changes must have fresh build metadata, tests and rollback. No EOF-newline-only deployment needed.
 3. Audit references to the seven previously quarantined YAML files; capture dashboard resource and helper ownership.
 4. Integrate and test spoiler-safe historical results on exact verified Python, document install/rollback, and only then consider reviewed `dev → beta → main` promotion.
 
