@@ -137,3 +137,4 @@ automation:
       - action: input_boolean.turn_off
         target:
           entity_id: input_boolean.motogp_calendar_preview
+
