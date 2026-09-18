@@ -1,34 +1,34 @@
 # ha-motogp
 
-Home Assistant companion project for the unofficial [`Liionboy/motogp_sensor`](https://github.com/Liionboy/motogp_sensor) integration. This repository holds experimental frontend code, a version-gated historical upstream patch, backend prototypes and documentation. **It is not yet a complete, reproducible copy of the Home Assistant installation.**
+Home Assistant companion project for the unofficial [`Liionboy/motogp_sensor`](https://github.com/Liionboy/motogp_sensor) integration. This repository holds experimental frontend code, a version-gated historical upstream patch, backend prototypes and documentation. **It is not yet a complete, reproducible copy of the running Home Assistant installation.**
 
-> **Read first:** [Current project status](docs/project-status.md) · [HA ↔ GitHub inventory and handover](docs/deployment-sync-2026-09-18.md) · [Historical results](docs/historical-results.md).
+> **Read first:** [Project status](docs/project-status.md) · [HA ↔ GitHub inventory](docs/deployment-sync-2026-09-18.md) · [Verified deployed Python audit](docs/deployed-python-audit-2026-09-18.md) · [Historical results](docs/historical-results.md).
 
 ## What is actually running?
 
-| Component | Status as of 2026-09-18 |
+| Component | Verified or reported state as of 2026-09-18 |
 | --- | --- |
-| Home Assistant Python backend | `Liionboy/motogp_sensor` with local changes, including multicategory `sessions_all`. Exact deployed source, patch set and revision **have not been captured/verified in this repo**. Do not replace it with the old patch. |
-| Existing full MotoGP dashboard | User's working legacy dashboard; preserve it. The repository's older WIP YAML files are not a guaranteed export of that dashboard. |
-| New JS test card | `frontend/ha-motogp-card.js`, `v0.1.0-dev.3`, build `0b493073ef59`, tested visually in the separate Card-test view. [Install/version instructions](frontend/README.md). |
-| Historical results | `backend/result_archive.py` plus unit tests on `dev` only. CI tests use fake API data. **Not wired into HA or the card; historical API availability not yet verified against real old sessions.** |
-| Old HA package cleanup | Six misplaced Lovelace YAML packages and one duplicate dashboard-mode package moved to local quarantine, not deleted. User subsequently reported no HA repair warnings. [Details](docs/deployment-sync-2026-09-18.md). |
+| Home Assistant Python backend | User uploaded exact source ZIP; `manifest.json` = **v1.0.9**, 14 files; archive and inventory validated, 13 Python files pass syntax parsing. Compared against upstream tag v1.0.9: **9 exact files, 5 modified** (`api.py`, `const.py`, `coordinator.py`, `helpers.py`, `sensor.py`). The ZIP/source is attached in the conversation and **not yet committed as source here**. Full hashes and features: [audit](docs/deployed-python-audit-2026-09-18.md). |
+| Legacy MotoGP dashboard | User's working older dashboard; preserve it. `dashboard/*_wip.yaml` are reference prototypes, not a verified export of that dashboard. |
+| New JS test card | `frontend/ha-motogp-card.js`, `v0.1.0-dev.3`, build `0b493073ef59`, observed in separate Card-test; [version/install instructions](frontend/README.md). |
+| Historical results | Isolated `backend/result_archive.py` and fake-API unit tests on `dev`. **Not integrated in HA or UI.** Availability of an actual historic Moto2 FP1 classification not yet verified. |
+| Package cleanup | Six misplaced Lovelace YAML packages and a duplicate helper package moved to local quarantine, not deleted; user reported no remaining HA repair warnings. [Details](docs/deployment-sync-2026-09-18.md). |
 
 ## Repository map
 
-- [`frontend/`](frontend/) — standalone JS Lovelace test card; version stamp belongs to the distributed JS file.
-- [`dashboard/`](dashboard/) — `motogp_custom_card_dev.yaml` for the new card, plus **legacy WIP/reference** YAML. Dashboard configs are not HA `packages`.
-- [`backend/`](backend/) — architecture and an isolated historical-results prototype; not a drop-in integration.
-- [`scripts/patch_motogp_sensor_v1_0_10.sh`](scripts/patch_motogp_sensor_v1_0_10.sh) — older, version-gated upstream patch, not a complete representation of the deployed multicategory integration.
-- [`docs/`](docs/) — status, deployment drift, tests and design decisions.
-- [`tests/`](tests/) — frontend and isolated historical-results regression tests.
+- [`frontend/`](frontend/) — standalone JS Lovelace test card, version stamp in distributed JS.
+- [`dashboard/`](dashboard/) — test-card YAML plus **legacy WIP/reference** dashboard YAML. Lovelace cards are not Home Assistant `packages`.
+- [`backend/`](backend/) — architecture and isolated historical-results prototype, not a drop-in integration.
+- [`scripts/patch_motogp_sensor_v1_0_10.sh`](scripts/patch_motogp_sensor_v1_0_10.sh) — historical patch specifically for upstream 1.0.10; **do not apply or force against running modified 1.0.9**.
+- [`docs/`](docs/) — source audit, deployment drift, tests and design.
+- [`tests/`](tests/) — frontend and historical-results isolated regression tests.
 
-## Development and rollout rules
+## Safe development and rollout
 
-Development goes `dev → beta → main`, with actual HA tests and explicit review at each boundary. **Never promote by merely copying files or by assuming the deployed Python matches this repo.** As checked 2026-09-18, `beta` and `main` still point to the same older commit; recent JS and results changes are `dev` only.
+Development goes `dev → beta → main`, with actual HA verification, tests and explicit review at each boundary. The five modified Python source files still need to be checked in as a reviewed exact snapshot or reproducible overlay and verified against the [uploaded hashes](docs/deployed-python-audit-2026-09-18.md). Separate HA-side `motogp_*.sh` scripts seen in the file manager are **not in the ZIP** and have not been reviewed. Document integration install/rollback before changing the running files.
 
-Before changing Python: retrieve the exact deployed integration files, compare them to the tracked upstream baseline/patch, record an install/rollback path and test against recorded *real* multicategory payloads. Before changing the frontend: bump the version and embedded build identity and verify the version displayed in the running test card. Do not touch the working legacy dashboard without an explicit migration decision.
+The frontend version is independent of the Python backend version. For JS changes, bump version/build identity and inspect the footer in the running Card-test; the cache-busting resource URL alone is not proof. Never overwrite the working legacy dashboard as part of a test. Historical-results integration must validate a real old session, persist by event/category/session IDs and enforce no-spoiler at both backend and UI boundaries.
 
-**Do not blindly run the old patch or `--force` it against the running HA installation.** The original upstream baseline was v1.0.10, but today's deployed revision has not been reverified. The old install instructions in `docs/local-patch-v1.0.10.md` are historical context, not an instruction to reinstall now.
+Track the missing reproducible source and integration work under [issue #1](https://github.com/Jocke1970/ha-motogp/issues/1). `beta` and `main` remain intentionally unpromoted. No current instructions should reinstall or run the old 1.0.10 patch against the captured 1.0.9 deployment.
 
 This is a personal, unofficial project and is not affiliated with MotoGP or its rights holders.
