@@ -1,0 +1,21 @@
+MotoGP – installerad källkod
+Insamlad: 2026-09-18T19:24:04.773015+02:00
+Integration: motogp_sensor
+Version: 1.0.9
+
+Filer och SHA-256:
+
+0c86a72c003f9df433a43cb7eb204c52aa107d6364d8faf45ff3b43925fd2f7f      2519 bytes  __init__.py
+6abdc1cd4a4065044fd1728e3ead2a055215c9b62e75d5b7ad4b839f1950e081      5935 bytes  api.py
+ad1ea722f5cbbf5309ffa66c98d2bb8844cb704f672b24616da9369d69ffa06a      2315 bytes  binary_sensor.py
+920924047d1cc37437b95ed41d02a023ed9f8641338aebfbd9f7c2f30ddae352      2503 bytes  calendar.py
+6c3ad99d037b47d3eb85bc49e73f7577469b4b058a0fb25a097bc77a3352fe24      5701 bytes  config_flow.py
+a5efe7b6b4691580031216cfb2a3fe3ee1cf488de8934d70fef5e8f76eacf49f      6546 bytes  const.py
+bde9df6b349d5a087ee9f8b9d94ea5c520ad9a0ee7b6edf0014c2ed541c4e4ff     38918 bytes  coordinator.py
+184b251fbac76d02b249b9f642af8565fa36e36ae533ed73361660922463f62e      2891 bytes  device_trigger.py
+3c74154ab5d421b98db212ecf6e6a384fe7b94745233595adaba8a8c6d7d571f      1132 bytes  entity.py
+71c8a4a392019cec7baf5f0447d0b6a83c6688cac3f787a34b31236470887523      9626 bytes  helpers.py
+6f20bf0fba1aad309485eb7b11c5668b7f38b05dd6b701491e8071a5320e071c       449 bytes  manifest.json
+d5d4ffedce9ea5e4632d4f0bd3ab683aadff114a2ce135765f7feb2c5dfea270      2063 bytes  select.py
+aa11653b791919f32a72b702b474ce04bbd729494d1e5b74b6bf29f2b5f42862     23224 bytes  sensor.py
+0609dc11f4d3ad0c216c0a4c79b6da2f78bfb2b98e61b4048ee73c6d2c043e6b      2146 bytes  switch.py
