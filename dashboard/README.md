@@ -1,25 +1,23 @@
-# Dashboard YAML
+# MotoGP dashboards — separate the working view from experiments
 
-This directory contains the current Lovelace prototypes used with `custom:button-card`.
+**Current development path:** standalone [`custom:ha-motogp-card`](../frontend/README.md) in the separate **Card-test** Home Assistant view. Its example card configuration is [`motogp_custom_card_dev.yaml`](motogp_custom_card_dev.yaml). The distributed JS resource is [`frontend/ha-motogp-card.js`](../frontend/ha-motogp-card.js); verify its embedded version in the card footer. This dev component does not yet reproduce every feature of the user's original dashboard.
 
-The files are intentionally marked as **WIP**. They represent the latest saved versions from development, but the layout still needs another pass for reliable full-width behaviour on all screen sizes.
+**Existing working/legacy dashboard:** preserve it. The files in this repository are not a verified full export of the running legacy dashboard, and updating an experimental YAML card is not permission to alter the original dashboard.
 
-Current prototypes:
+## Reference material, NOT active HA packages
 
-- `event_header_wip.yaml` – event/race-week header with live or next-session countdown.
-- `live_timing_card_wip.yaml` – live rider timing card.
-- `weekend_schedule_2col_wip.yaml` – two-column MotoGP weekend schedule.
+- `event_header_wip.yaml` — older `custom:button-card` header prototype.
+- `live_timing_card_wip.yaml` — older `custom:button-card` timing prototype.
+- `weekend_schedule_2col_wip.yaml` — older two-column schedule prototype.
 
-## Dependencies
+The WIP files are historical/reference implementations, **not the active JS test card**. Their saved content may lag behind edits made directly in Home Assistant. Do not install them into `/config/packages`: Lovelace YAML beginning with `type:` is a card configuration, not a valid Home Assistant package.
 
-- Home Assistant
-- `custom:button-card`
-- Patched `motogp_sensor` data described in `docs/local-patch-v1.0.10.md`
+## What was cleaned up on the HA host?
 
-## Important
+On 2026-09-17/18, six misplaced old MotoGP Lovelace YAML files were moved out of `/config/packages` into `/config/.motogp_cleanup_quarantine`, and a duplicate `motogp_dashboard_mode_package.yaml` was quarantined. The active `motogp_dashboard_mode.yaml` was retained. User reported no repair warnings afterward. **These files were not deleted and their final removal has not been approved or verified against all dependencies.** The repo's WIP files above were not deleted; they are explicitly reference material. See [cleanup inventory](../docs/deployment-sync-2026-09-18.md).
 
-The saved schedule currently uses wall-clock parsing to avoid the observed +2 h browser conversion for Pulselive session timestamps.
+## Design and data constraints
 
-Category-aware LIVE matching is the next change: the MotoGP weekend schedule must not mark a MotoGP session live merely because another category (Moto2/Moto3) is running a session with the same short name.
+The JS test card expects `sensor.motogp_next_race.attributes.sessions_all` for multi-class schedule. That field comes from local backend modifications not yet captured completely in this repo; the old tracked v1.0.10 patch is not a replacement. Preserve category + session + event identity and no-spoiler protections. Event times currently use a wall-clock workaround; timezone-aware normalization belongs in Python.
 
-The three cards can be placed in a normal `vertical-stack` while testing. A final combined stack will be added once the responsive/full-width layout is locked.
+Follow `dev → beta → main` after real HA verification, and remove an obsolete implementation only after the replacement and remaining references have been confirmed. Do not make parallel active cards or duplicate HA helpers without documenting ownership.
