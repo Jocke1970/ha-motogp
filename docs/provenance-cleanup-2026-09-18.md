@@ -1,36 +1,31 @@
 # Audit of HA MotoGP patch provenance — 2026-09-18
 
-**Scope and source:** user-supplied `motogp_provenance_review.zip`, exported 2026-09-18 18:11:43 UTC from the running HA host. ZIP SHA-256 `578aa3db991656e06f2f1df5dcc735ba995adaf6a6e8268c0f2be8cd709660d8`. ZIP CRC and all 13 `REVIEW_METADATA.json` member SHA-256/byte sizes verified. Members: **11 shell scripts**, the active `/config/packages/motogp_dashboard_mode.yaml`, the actual `/config/www/ha-motogp-card.js`, and metadata. This ZIP was reviewed in the conversation, **not committed to this public repository**. No scripts in it were executed.
+**Scope and source:** user-supplied `motogp_provenance_review.zip`, exported 2026-09-18 18:11:43 UTC from HA. ZIP SHA-256 `578aa3db991656e06f2f1df5dcc735ba995adaf6a6e8268c0f2be8cd709660d8`; ZIP CRC and all 13 member SHA-256/byte sizes verified. Contents: 11 historical shell scripts, active `/config/packages/motogp_dashboard_mode.yaml`, exported `/config/www/ha-motogp-card.js`, metadata. The ZIP was reviewed in the conversation, **not committed publicly**; none of the historical scripts were executed during review.
 
-## Patch disposition (not a license to delete yet)
+## Patch disposition
 
-| HA script | Writes / purpose | Evidence in the committed 1.0.9 snapshot |
+| HA script | Purpose / side effect | Captured Python source evidence |
 | --- | --- | --- |
-| `motogp_grid_records_patch.sh` | Edits `api.py`, `const.py`, `coordinator.py`, `sensor.py`; grid API, records, refresh and sensor attributes. Writes four files separately after compile checks. | Grid API, refresh function and grid/records sensor attributes present. |
-| `motogp_grid_records_hotfix.sh` | Edits `const.py` grid URL f-string. | Correct double-brace event/category URL is present. |
-| `motogp_lap_history_patch.sh` | Edits `sensor.py` history/fastest lap. | `MOTOGP_LAP_HISTORY_V1` present. |
-| `motogp_live_extras_1_4_patch.sh` | Edits `helpers.py`, `sensor.py`, `coordinator.py`, `const.py` for rider fields, live status, track/weather. | Rider colors/status, track-status codes, conditions method and weather interval present. |
-| `motogp_multiclass_schedule_patch.sh` | Edits `coordinator.py` and `sensor.py` for all-category schedules. | `weekend_sessions_all`, `sessions_all` and `schedule_categories` present. |
-| `motogp_polling_5s_patch.sh` | Edits `const.py`. | `LIVE_POLLING_ACTIVE = timedelta(seconds=5)` present. |
-| `motogp_postrace_advance_patch.sh` | Edits `coordinator.py`; advances next event. | `MOTOGP_POSTRACE_ADVANCE_V1` present. |
-| `motogp_pulselive_status_codes_patch.sh` | Edits `const.py`, `coordinator.py` for status mapping. | `S` handled as active in coordinator. |
-| `motogp_season_calendar_patch.sh` | Edits `sensor.py`. | `season_calendar` attribute present. |
-| `motogp_tv_delay_patch.sh` | Edits `coordinator.py`, `sensor.py` for full-snapshot delay. | `_apply_tv_delay`, helper `input_number.motogp_tv_delay_seconds`, effective-delay attrs present. |
-| `install_motogp_dashboard_mode_package.sh` | **Unconditionally overwrites** `/config/packages/motogp_dashboard_mode.yaml`; does not modify `configuration.yaml` but prints package-include guidance. | Generated YAML matches the active exported package exactly. Exact package now tracked at [`config/packages/motogp_dashboard_mode.yaml`](../config/packages/motogp_dashboard_mode.yaml), commit `5913ea0`; SHA-256 `ed6c84f274d5b7d3af638012d68b0609e2ec5ff4eeb0cd5dfe2f89c1503cc769`. This is a reference copy, **not** a second active HA package. |
+| `motogp_grid_records_patch.sh` | Edits four Python files for grid API/records/sensors; writes each separately. | Grid API, refresh and attributes present. |
+| `motogp_grid_records_hotfix.sh` | Edits grid URL f-string. | Correct double-brace grid URL present. |
+| `motogp_lap_history_patch.sh` | Edits lap-history sensor. | `MOTOGP_LAP_HISTORY_V1` present. |
+| `motogp_live_extras_1_4_patch.sh` | Rider fields, status, track/weather. | Corresponding fields and conditions method present. |
+| `motogp_multiclass_schedule_patch.sh` | Adds all-category schedule. | `weekend_sessions_all`, `sessions_all`, `schedule_categories` present. |
+| `motogp_polling_5s_patch.sh` | Changes live polling. | `LIVE_POLLING_ACTIVE = timedelta(seconds=5)` present. |
+| `motogp_postrace_advance_patch.sh` | Advances next event. | `MOTOGP_POSTRACE_ADVANCE_V1` present. |
+| `motogp_pulselive_status_codes_patch.sh` | Live/status mapping. | `S` handled as active. |
+| `motogp_season_calendar_patch.sh` | Season calendar attribute. | `season_calendar` present. |
+| `motogp_tv_delay_patch.sh` | Full-snapshot delay in coordinator/sensor. | `_apply_tv_delay` and delay helper/attributes present. |
+| `install_motogp_dashboard_mode_package.sh` | **Unconditionally overwrites** active display-mode YAML. | Generated YAML byte-matches active export. Canonical reference committed as [`config/packages/motogp_dashboard_mode.yaml`](../config/packages/motogp_dashboard_mode.yaml), SHA-256 `ed6c84f274d5b7d3af638012d68b0609e2ec5ff4eeb0cd5dfe2f89c1503cc769`. |
 
-These are *source-presence checks*, not a reconstruction of execution order, a guarantee that every patch operation is harmless or a complete HA runtime test. The full fourteen-file live Python snapshot and inventory are already tracked in [`backend/deployed/v1.0.9/`](../backend/deployed/v1.0.9/), source commit `0c66663`, with passing source-integrity CI. Do **not** rerun these old patch scripts; in particular multi-file patches are not transactionally installed and the package installer will overwrite the currently working YAML. Retain the upstream v1.0.10-gated repo patch only as clearly labeled historical material, never force onto deployed 1.0.9.
+Source-presence checks do not prove flawless runtime behavior. The exact 14-source Python snapshot is tracked in [`backend/deployed/v1.0.9/`](../backend/deployed/v1.0.9/) with passing integrity CI. Do not rerun old patches: multi-file edits are not atomic, and the package installer overwrites working configuration. The repository's separate upstream 1.0.10-gated patch is historical only; **never force it onto customized deployed 1.0.9**.
 
-## JS DRIFT — open and independent of shell-script cleanup
+## Frontend discrepancy — RESOLVED as final newline only
 
-The export reads the actual `/config/www/ha-motogp-card.js`. Its Git blob hash is `10f995c8622036beae117ae11c791a682bbeeac1`; the source at GitHub `dev/frontend/ha-motogp-card.js` has blob `fef8e3e4f09d30f01385d6e8417e96ae923cb65d`. Both embed `v0.1.0-dev.3`, build ID `0b493073ef59` and the same source-commit metadata. **Bytes differ despite identical displayed build metadata.** The exact diff, actual browser-loaded JS file and whether difference is functional remain unverified. Do not overwrite the HA JS or assume GitHub is a complete frontend mirror; compare/diff it as a separate task and issue a new explicit build if needed.
+The exported HA JS has 26,122 bytes, Git blob `10f995c8622036beae117ae11c791a682bbeeac1`, and no final LF. GitHub `dev/frontend/ha-motogp-card.js` at source commit `0c66663` has 26,123 bytes, Git blob `fef8e3e4f09d30f01385d6e8417e96ae923cb65d`. Appending **exactly one LF** to exported bytes reproduces GitHub's exact Git blob hash. Both share `v0.1.0-dev.3` and `0b493073ef59`. Thus there is **no functional difference between these two file contents**, and no overwrite or version bump is warranted. [Full proof and remaining browser-cache qualification](frontend-drift-resolution-2026-09-18.md). Browser-loaded JS content still needs independent verification before future deployments.
 
-## Actual HA reference audit and quarantine gate
+## Actual HA reference scan and script quarantine — COMPLETED, NOT DELETED
 
-The user ran the read-only [`audit_motogp_patch_references.py`](../scripts/audit_motogp_patch_references.py) on HA: **11 unchanged scripts**, **6,618 configuration text files scanned**, **zero potential invocations**, **eight files skipped** because of its 2 MB limit (seven EPG XML files and `custom-brand-icons.js`). It correctly printed STOP rather than moving files. This does not establish that the eight contain no reference, nor that external cron/add-on jobs do not invoke the scripts.
+The first host read-only scan checked 6,618 text files: zero references, eight oversized files skipped, STOP as designed. The subsequently executed hash-gated [`quarantine_motogp_patches.py`](../scripts/quarantine_motogp_patches.py) `--apply` verified all 14 live integration sources, the original provenance ZIP and eleven script hashes, checked destination collisions, and scanned **6,626 text files including all eight previously skipped files** in chunks. It reported zero filename/wildcard references and successfully moved **only eleven allowlisted scripts** to `/config/.motogp_cleanup_quarantine/patch-scripts`. Live Python, package, JS, backups, non-MotoGP scripts and provenance ZIP untouched. [Executed runbook](patch-quarantine-runbook-2026-09-18.md).
 
-A new hash-pinned, **reversible** [`quarantine_motogp_patches.py`](../scripts/quarantine_motogp_patches.py) checks the source ZIP against all 14 live integration files, all 11 patch hashes/provenance, destination collisions, and scans even large /config text files in 1 MB chunks. Default is read-only; only `--apply` moves the eleven exact scripts to `/config/.motogp_cleanup_quarantine/patch-scripts/`. It never changes live integration, active package, JS or non-MotoGP scripts. Synthetic tests covered dry run, reference in a large file, collision, successful eleven-file move and repeated-run stop. See the [runbook](patch-quarantine-runbook-2026-09-18.md) for exact scope, checks, remaining external-job limitation and rollback. **Not yet run against the real HA host. No files permanently deleted.**
-
-- Static scan of exported 11 scripts identified file writes to the MotoGP Python files and unconditional package-file overwrite; no download, automatic reboot, `rm -rf` or obvious literal secret assignment found. Exporter keyword scan had zero alerts; neither scan is a comprehensive credential audit. Do not publish unreviewed script contents.
-- Existing seven quarantined YAML files are a separate cleanup requiring their own dependency check. A frontend JS drift investigation is also separate.
-
-**Current state:** actual Python snapshot and active package reference tracked, patch provenance reviewed, host's first read-only scan performed, stronger gated script ready but not yet applied. Keep `beta`, `main`, legacy dashboard and running integration unchanged; do not delete quarantined files until individually verified.
+User knows of no external cron/add-on invocations, but external and manual callers cannot be conclusively excluded by scanning `/config`. No files have been permanently deleted. Before a separate permanent purge, validate HA/dashboard/scheduled behavior, check quarantined contents/hashes and request distinct approval. Seven earlier quarantined YAML files require independent reference/deletion review. The original provenance archive is retained as audit/rollback evidence.
