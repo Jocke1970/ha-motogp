@@ -1,76 +1,41 @@
-# Project status
+# MotoGP project status — 2026-09-18
 
-## Backend baseline
+This is a **state inventory**, not a claim that the GitHub checkout exactly matches the Home Assistant host. See [deployment sync and handover](deployment-sync-2026-09-18.md) for sources and a safe capture procedure.
 
-Current reviewed upstream baseline: `Liionboy/motogp_sensor` **v1.0.10**.
+## Branches and ownership
 
-Local patch responsibilities:
+- `dev`: new standalone frontend, versioning/test workflows and isolated Python historical-results prototype.
+- `beta` and `main`: intentionally not promoted yet; both were at `c24ee59e6cfe5e6504da77a41fb4a1559cc99949` when checked 2026-09-18.
+- Running HA Python is still upstream `Liionboy/motogp_sensor` with extra local modifications. The repository's version-gated 1.0.10 patch **does not contain all deployed multicategory changes**. Deployed exact source/version checksums: unknown until captured.
+- Running legacy dashboard must not be overwritten. The new `custom:ha-motogp-card` is tested separately in Card-test.
 
-- Treat Pulselive `session_status_id: S` as active.
-- Keep active polling at 10 seconds for both `I` and `S`.
-- Preserve `category` and `championship_id` from live timing.
-- Expose MotoGP weekend sessions on `sensor.motogp_next_race`.
+## Frontend: implemented and observed
 
-Upstream-owned behaviour:
+- JS test resource: [`frontend/ha-motogp-card.js`](../frontend/ha-motogp-card.js), `v0.1.0-dev.3` / build `0b493073ef59`. Build metadata is embedded in actual JS and shown in the card; the resource URL query is not proof of loaded version.
+- Standalone schedule/timing modes and local, responsive expanders (no helper service round trips). Real HA screenshots on 2026-09-17 showed a multi-category three-day schedule, working expandable day/timing sections and build footer; the user described the new expansion as noticeably faster. No instrumented speed measurement.
+- Session identity includes category + session + event; no-spoiler protection and midnight state behavior are covered by frontend tests.
+- Open frontend issues: invalid weather placeholders shown as `0°`, a manually opened prestart rider list showing no data despite potential sensor riders, and optional upcoming-day auto-selection before Friday. The source rider identity and available data need verifying; do not bypass no-spoiler protection. [Detailed observations](dev-ui-test-observations-2026-09-17.md).
+- Still absent in this JS implementation: full parity with the old dashboard (e.g. header/map, status grid, standings/last-race views and any legacy visual features not explicitly ported), persistent result browsing, and backend TV delay. Keep the old dashboard available.
 
-- Unclassified riders (`position < 1`) sorted after classified riders.
-- Fastest lap prefers best/fastest lap fields before last lap.
-- Constructor standings rebuilt from completed Sprint/GP classifications.
+## Backend: actual vs GitHub
 
-## Dashboard state
+- Reviewed historical upstream base: v1.0.10. Repo patch adds `S` as active, live category/championship attributes and MotoGP `sessions` schedule. These are **historical patch responsibilities**, not proof of the exact running files or installed version.
+- Real HA entity observations from 2026-09-17: `sensor.motogp_next_race.attributes.sessions_all` contained a multicategory schedule (20 entries across MotoGP/Moto2/Moto3); `schedule_categories` and `session_count_all` were also present, and weekend-view binary sensors were on. These extensions are not captured in the older tracked patch. Confirm exact installed source before touching it.
+- Python `backend/result_archive.py` and `tests/test_result_archive.py` on `dev` provide an isolated historical classifications archive; CI passed its fake-API regression suite 2026-09-18. This is **not installed, not connected to the JS card, not verified against a real historical FP1 endpoint**. [Architecture and rollout gate](historical-results.md).
+- Future Python architecture: normalized timezone-aware schedule, category/session/event lifecycle, persistable official classifications, then coherent full-snapshot TV delay (0–60 s). Do not delay individual sensors independently.
 
-Implemented / prototyped:
+## Cleanup completed in HA (reported 2026-09-17/18)
 
-- Full-width event header with race week badge.
-- Current/next session state.
-- Live session countdown.
-- Two-column weekend schedule.
-- Weather per completed session where available.
-- Live timing rows with rider, bike/team, gaps, pit/status indicators.
-- Expandable championship standings and last-race sections in the larger dashboard concept.
+Six old Lovelace card YAML files accidentally loaded as `/config/packages` were moved to `/config/.motogp_cleanup_quarantine`; the only difference between `motogp_dashboard_mode.yaml` and `motogp_dashboard_mode_package.yaml` was a trailing blank line, so the duplicate was also quarantined. The retained active file is `/config/packages/motogp_dashboard_mode.yaml`. No files were permanently deleted. The user subsequently reported **no repair warnings** in HA. An explicit `ha core check` result and all affected dashboard entity dependencies have not been separately captured in this repo. Leave quarantine untouched until reviewed and verified. [Exact names](deployment-sync-2026-09-18.md).
 
-Known dashboard work still open:
+## Priority next steps — do not skip gates
 
-- Finish reliable full-width `custom:button-card` grid behaviour across desktop/mobile.
-- Make LIVE highlighting category-aware so Moto2/Moto3 Q2 cannot incorrectly light up MotoGP Q2.
-- Show friendly category label in live timing/header.
-- Continue visual polish of standings and last race.
+1. Capture **exact deployed Python integration files**, version, hashes and patch provenance. Compare them with upstream and repo patch. Never blindly reinstall/run the old patch, and never include HA secrets or runtime storage in GitHub.
+2. Record the actual active dashboard/resource(s), helper ownership and remaining dependencies. Confirm legacy and Card-test are independent before deleting quarantined files.
+3. Review historical-result integration against the *deployed* Python, confirm a real older Moto2 FP1 classification, and stage an explicitly identified event/category/session API. No result fallback to current riders or to another pass; no cached spoiler leaks.
+4. Add tests with real scrubbed payloads and a verified rollback path; only then integrate/test on HA and promote `dev → beta → main` by reviewed PRs.
+5. Address the three frontend polish issues on `dev` with version bump, regression tests and verification in Card-test; then later TV delay and UI parity.
 
-## Category-aware target behaviour
+## Known uncertainty
 
-When Moto3 Q2 is live while MotoGP Sprint is next:
-
-```text
-Live timing:       Moto3 · Q2 · LIVE · 11:44 kvar
-MotoGP schedule:   Next MotoGP · Sprint · 15:00
-```
-
-The live feed category and the static MotoGP weekend schedule must be treated as separate data domains.
-
-## TV delay
-
-Planned as a backend feature, not a Lovelace-only workaround.
-
-Preferred design:
-
-- Keep polling the live feed normally.
-- Timestamp complete live snapshots.
-- Keep a short in-memory ring buffer.
-- Expose a snapshot N seconds behind live data.
-- Apply the delay consistently to session/category, countdown, positions, gaps, pit, fastest lap and lap count.
-- Target configurable delay range: roughly 0–60 seconds.
-
-## Time handling note
-
-The Pulselive sessions endpoint has been observed to return event wall-clock times in a representation that JavaScript interprets as UTC, causing a +2 h display shift in Sweden during CEST. The current Lovelace schedule prototypes therefore parse the `YYYY-MM-DDTHH:MM` wall-clock portion directly instead of allowing browser timezone conversion.
-
-This should eventually be formalized in backend/session metadata so the dashboard does not need venue-specific assumptions.
-
-## Next practical steps
-
-1. Install upstream 1.0.10 cleanly through HACS.
-2. Apply and verify the version-gated local patch.
-3. Capture actual `category` values for MotoGP/Moto2/Moto3 live feeds.
-4. Update dashboard logic to be category-aware.
-5. Finish responsive full-width card layout.
-6. Implement backend TV delay.
+GitHub access does not provide access to `/config` on the actual HA host. Statements above about that host are based on user-shared commands, sensor attributes and screenshots; installed source files and current live configuration still need verification. "No repair warnings" is not synonymous with a complete package dependency audit.
