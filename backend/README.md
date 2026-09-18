@@ -8,6 +8,12 @@ Planned modules within the Home Assistant integration:
 - `session_manager.py`: unified session identity (`event_id`, `category_id`, `session_id`), lifecycle and final-snapshot handling. Track exactly which session each result belongs to.
 - `tv_delay.py`: append complete timestamped coordinator snapshots to a bounded ring buffer, expose a consistent state delayed by a user-selected 0–60 seconds. Do not delay individual HA sensors separately. Preserve online/offline and no-spoiler safety semantics.
 
+## Historical results prototype (dev only)
+
+`result_archive.py` now contains an isolated, tested module that fetches **official finished-session classifications** by event + category + session UUID, stores results through a Home Assistant Store-compatible interface, and blocks cache/API reads when spoiler mode is enabled. It can fetch older event sessions retrospectively; the Home Assistant instance does not need to have recorded them live. See [historical results design and rollout gate](../docs/historical-results.md) and [unit tests](../tests/test_result_archive.py).
+
+**Not yet wired into the running integration or frontend.** The currently deployed multicategory Python changes have not been captured in this repository. Do not install this prototype or overwrite your working integration with old v1.0.10 patch files. Only `dev` contains the prototype; `beta` and `main` remain untouched.
+
 ## Data contract v0 (already in use by frontend dev)
 
 - `sensor.motogp_next_race.attributes.sessions_all`: array of `{id, date, name, category, status, air?, ground?, ...}`; legacy `sessions` as fallback.
