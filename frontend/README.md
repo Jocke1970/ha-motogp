@@ -4,11 +4,13 @@ Fristående Lovelace-kort i JavaScript. Det är en **utvecklingsversion på `dev
 
 **Aktuell frontendversion: `v0.1.0-dev.3` · bygg-ID `0b493073ef59`.** [Så verifierar du faktiskt inladdad version](../docs/frontend-versioning.md). Version och bygg-ID visas längst ned i det nya kortet; klicka för branch, källcommit och byggdatum. Backendversionen är separat.
 
-## Installation i en TEST-vy
+**Kodjämförelse 2026-09-18:** JS-filen som exporterades från HA är exakt samma kod som GitHub-versionen **förutom ett avslutande radslut (LF)**. Den är 26 122 byte mot GitHubs 26 123 byte, och med ett LF tillagt matchar Git-blobhashen exakt. [Verifierat underlag](../docs/frontend-drift-resolution-2026-09-18.md). **Kopiera inte om filen och byt inte bygg-ID enbart av denna anledning.** Webbläsarens faktiska resurs/cache behöver fortfarande kontrolleras separat inför nästa riktiga uppdatering.
 
-1. Hämta [`frontend/ha-motogp-card.js`](ha-motogp-card.js) från **dev**. Kopiera filen till `/config/www/ha-motogp-card.js` i Home Assistant. Behåll samma filnamn vid kommande versioner.
-2. Inställningar → Dashboards → Resurser → uppdatera **befintlig** resurs till `/local/ha-motogp-card.js?v=0.1.0-dev.3-0b493073ef59` som **JavaScript module**. Skapa ingen dubblett. Gör en hård omladdning av webbläsaren och jämför versionsraden i själva kortet (query-parametern ensam bevisar ingenting).
-3. Ersätt de gamla schema- och timingkorten i just test-vyn med [`dashboard/motogp_custom_card_dev.yaml`](../dashboard/motogp_custom_card_dev.yaml). Kör inte båda implementationerna samtidigt när du mäter responstid. Den gamla fungerande dashboarden lämnas orörd.
+## Installation i en TEST-vy – endast för kommande, verifierad ny build
+
+1. Hämta [`frontend/ha-motogp-card.js`](ha-motogp-card.js) från **dev** när det finns en faktiskt ny, versionsstämplad build. Kopiera då filen till `/config/www/ha-motogp-card.js` i Home Assistant. Behåll samma filnamn vid kommande versioner.
+2. Inställningar → Dashboards → Resurser → uppdatera **befintlig** resurs till URL med den **nya** versionen/bygg-ID:t som **JavaScript module**. Skapa ingen dubblett. Gör en hård omladdning av webbläsaren och jämför versionsraden i själva kortet (query-parametern ensam bevisar ingenting). För nuvarande build är referens-URL:en `/local/ha-motogp-card.js?v=0.1.0-dev.3-0b493073ef59`; detta är inte en instruktion att återinstallera den för EOF-radslutet.
+3. Ersätt de gamla schema- och timingkorten i just test-vyn med [`dashboard/motogp_custom_card_dev.yaml`](../dashboard/motogp_custom_card_dev.yaml) om kortet inte redan finns där. Kör inte båda implementationerna samtidigt när du mäter responstid. Den gamla fungerande dashboarden lämnas orörd.
 4. `mode: both` visar båda; `mode: schedule` och `mode: timing` kan placeras som två separata kort. `entities:` kan skriva över entity-id:n (se exempelfilen). `entities.spoiler` har standardvärdet `switch.motogp_no_spoiler`; ändra det om din switch heter något annat.
 
 ## Datakontrakt
