@@ -17,17 +17,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: JavaScript syntax
-        run: node --check frontend/ha-motogp-card.js
-      - name: Frontend smoke tests
+      - name: JavaScript syntax (mobile legacy and isolated next)
+        run: |
+          node --check frontend/ha-motogp-card.js
+          node --check frontend/ha-motogp-next-card.js
+      - name: Original frontend smoke tests
         env:
           TZ: Europe/Stockholm
         run: node tests/frontend-smoke.cjs
-      - name: Spoiler and midnight regression
+      - name: Original spoiler and midnight regression
         env:
           TZ: Europe/Stockholm
         run: node tests/frontend-spoiler.cjs
-      - name: Version and duplicate-resource regression
+      - name: Original version and duplicate-resource regression
         env:
           TZ: Europe/Stockholm
         run: node tests/frontend-version.cjs
+      - name: New isolated MotoGP frontend regression
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-next.cjs
