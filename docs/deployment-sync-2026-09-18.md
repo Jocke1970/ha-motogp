@@ -1,66 +1,47 @@
 # Home Assistant ↔ GitHub deployment inventory — 2026-09-18
 
-**Purpose:** distinguish deployed facts, repository source, prototypes and unverified assumptions. This is not a claim that GitHub already contains the complete live HA setup. The snapshot is based on user-shared HA configuration/logs/screenshots and inspected GitHub contents. The GitHub connection cannot read `/config` on the HA host.
+**This ledger distinguishes actual installed evidence, tracked GitHub files, plans and unverified assumptions.** See [the exact deployed Python audit](deployed-python-audit-2026-09-18.md) for source hashes and upstream comparison. Access to GitHub does not by itself grant access to `/config` on the HA host.
 
-## 1. Deployment ledger
+## Deployment ledger
 
-| Component | HA observation / status | GitHub representation on `dev` | Drift / action |
+| Component | Verified/user-observed HA status | What is in GitHub `dev` | Gap |
 | --- | --- | --- | --- |
-| Python integration | **New user-confirmed export on 2026-09-18 reports installed `manifest.json` version `1.0.9`, 14 source files and a ZIP of 28,424 bytes.** File content and hashes have NOT been received or reviewed. On 2026-09-17, HA exposed `sessions_all` with 20 passes over MotoGP/Moto2/Moto3. | Historical patch version-gated to upstream **v1.0.10** in `scripts/`; architecture in `backend/README.md`. | **Critical: deployed source and repository baseline differ.** Do not apply the v1.0.10 patch, force an update, or overwrite running files. Review the actual ZIP before comparing against upstream 1.0.9/1.0.10 and committing a reproducible source baseline. |
-| JS test card | User screenshot showed independent Card-test card with build footer and expandable multi-day schedule. | `frontend/ha-motogp-card.js` v0.1.0-dev.3, embedded build `0b493073ef59`; `dashboard/motogp_custom_card_dev.yaml`. | Browser/host file hashes not yet captured. Query parameter is not version proof. No further JS version changes in this documentation sync. |
-| Legacy dashboard | Existing separate working dashboard; exact live Lovelace export not obtained. | `dashboard/*_wip.yaml` are older reference prototypes, **not** a verified dashboard export. | Preserve working dashboard; capture separately if we need migration/cleanup, and never overwrite it for dev-card tests. |
-| Dashboard-mode package | User showed `/config/packages/motogp_dashboard_mode.yaml` and identical duplicate `motogp_dashboard_mode_package.yaml` (only a trailing blank line differed). | No corresponding installable package tracked in this repo as of this audit. | One active package remains on HA. Audit actual file/other helpers and decide whether to version-control a sanitized copy later. Do not generate a duplicate package. |
-| Result history | No installed history browser, results service or persistent archive demonstrated. | `backend/result_archive.py`, `tests/test_result_archive.py`, `.github/workflows/backend-results-check.yml`, `docs/historical-results.md` on `dev`. Fake-API CI succeeded 2026-09-18. | Code is isolated and not installed. Real old FP1 endpoint, store integration, frontend selector and rollback still need validation. |
-| TV delay | Existing backend delay mentioned in earlier UI work, precise deployed implementation/version not captured. | `backend/README.md` is a design, not deployable delay code. | Capture running code/settings before implementing or claiming parity; no unverified replacement. |
+| Running Python | User exported ZIP at 19:24 CEST and uploaded it here. Archive integrity and inventory SHA-256 verified: 14 files, manifest version **1.0.9**, 13 `.py` syntax checks pass. Exact Git blob comparison vs upstream `v1.0.9`: **9 identical, 5 modified** (`api.py`, `const.py`, `coordinator.py`, `helpers.py`, `sensor.py`). | Old **v1.0.10-only** patch; separate audit with full source hashes and feature inventory. | **The exact five local source files/ZIP are not yet checked into GitHub**, and patch-script provenance is incomplete. Do not overwrite live 1.0.9 with older tracked patch or force it. |
+| Frontend Card-test | User screenshot showed new separate card, build footer and multicategory schedule. | `frontend/ha-motogp-card.js` v0.1.0-dev.3 / build `0b493073ef59`; YAML for test card and tests. | Running host JS file hashes and final HA behavior not fully verified. Resource query alone is not build proof. |
+| Legacy dashboard | Exists independently and should remain working. | `dashboard/*_wip.yaml` are reference prototypes, not a confirmed current export. | Avoid touching it while testing the new card. |
+| Active display-mode package | `/config/packages/motogp_dashboard_mode.yaml` retained; its identical duplicate (only trailing blank line) quarantined. | Package source not yet tracked as an installable file. | Capture sanitized canonical package only if required; do not create a second active copy. |
+| Historical results | No permanent official session-results browser installed. | `backend/result_archive.py` and tests, isolated CI passed with fake API. | Needs integration against actual backend, HA Store, real historical Moto2 FP1 endpoint and UI. |
+| TV delay, lap history, grid and records | Source inspection confirms all exist in exported customized Python. TV helper: `input_number.motogp_tv_delay_seconds`; clamp 0–300 s; active polling 5 s. | Historical patch and roadmap do not reproduce all these features. | Capture five changed sources and local `.sh` patch provenance before modifying. |
 
-`beta` and `main` were both at `c24ee59e6cfe5e6504da77a41fb4a1559cc99949` when checked; `dev` contains unpromoted frontend/results work.
+`dev` is the only development branch touched; `beta`, `main` and the running HA installation have not been altered by this GitHub documentation reconciliation.
 
-## 2. Sept 17 package cleanup: documented, not yet deleted
+## Source capture: completed vs incomplete
 
-Home Assistant reported six packages with `expected dict or list or None at 'type'`. A guarded local script moved **exactly six** matching files containing top-level `type:` out of `/config/packages` into `/config/.motogp_cleanup_quarantine`, reporting `Flyttade: 6`, `Överhoppade: 0`:
+The actual uploaded `motogp_source_review.zip` is 28,424 bytes and includes `INVENTORY.txt`, 13 `.py` modules and `manifest.json`. ZIP CRC check passed, 14 inventory checksums match, 13 source files parse as Python, and the manifest matches upstream tag `v1.0.9` exactly. Scan for several obvious embedded credential patterns showed no hits; **not a full secret/security review**. The attachment is present in the conversation, not part of the GitHub repository. [Full audit, five local SHA-256 hashes, risks, and scope](deployed-python-audit-2026-09-18.md).
 
-1. `00_motogp_complete_stack.yaml`
-2. `01_motogp_header.yaml`
-3. `02_motogp_schedule_with_selector.yaml`
-4. `03_motogp_status_grid.yaml`
-5. `04_motogp_live_timing.yaml`
-6. `05_motogp_results_vm_expander.yaml`
+Source functionality present: multicategory `sessions_all`/`schedule_categories` and season calendar; snapshot-based TV delay; five-second active polling; lap history; grid, records and weather; postrace event advance; official `async_get_classification` API method. The latter is not an installed historical archive. Actual source includes `api.py`, `const.py`, `coordinator.py`, `helpers.py`, `sensor.py` changes relative to the upstream 1.0.9 Git objects. This evidence corrects older status documents that described deployed versions/contents as unknown.
 
-A `grep` comparison then located duplicate helper definitions (`motogp_calendar_preview`, `motogp_postrace_until`) in two active package files. `diff -u` revealed only one extra trailing blank line in `/config/packages/motogp_dashboard_mode.yaml` compared with `/config/packages/motogp_dashboard_mode_package.yaml`. A guarded script kept the former and moved the latter to:
+**Not captured by the ZIP:** contents of the local `motogp_*.sh` patch scripts shown in the user's VS Code screenshot; live Lovelace export; currently loaded JS file hashes; config helpers outside the Python integration; a real response from an old Moto2 FP1 classification endpoint. Never automatically commit `/config`, `.storage`, secrets, the HA database, backups or quarantine. The old `scripts/patch_motogp_sensor_v1_0_10.sh` requires v1.0.10 and should not be reapplied or forced onto installed v1.0.9.
 
-`/config/.motogp_cleanup_quarantine/packages/motogp_dashboard_mode_package.yaml`
+## Sept 17 package cleanup: completed, quarantine remains
 
-**Exactly seven files were quarantined, zero files deliberately deleted.** User later reported **no HA repair warnings**. A complete output from `ha core check`, an inventory of active package references and an explicit clean start log were not supplied here. Therefore record this as *warnings apparently resolved, final purge pending dependency and restore verification*, not as permission to delete the quarantine.
+HA had six Lovelace card YAML files accidentally interpreted as packages (`expected dict or list or None at 'type'`). Exactly these six files were moved from `/config/packages` to `/config/.motogp_cleanup_quarantine`:
 
-The `/config/.ha-git/` directory is a backup; grep hits there do not mean the same helpers are actively loaded. Conversely, no-repair UI alone does not prove a complete config inventory. Do not put the quarantine back under an active `packages` include.
+- `00_motogp_complete_stack.yaml`
+- `01_motogp_header.yaml`
+- `02_motogp_schedule_with_selector.yaml`
+- `03_motogp_status_grid.yaml`
+- `04_motogp_live_timing.yaml`
+- `05_motogp_results_vm_expander.yaml`
 
-## 3. Source capture: export succeeded, upload/review outstanding
+Two duplicate package files both defined `motogp_calendar_preview` and `motogp_postrace_until`. Diff revealed only a trailing blank line. Retained `/config/packages/motogp_dashboard_mode.yaml`; moved duplicate to `/config/.motogp_cleanup_quarantine/packages/motogp_dashboard_mode_package.yaml`. **Seven files quarantined; none deleted.** User subsequently reported no repair warnings. There is no recorded complete `ha core check` output or final reference/dependency audit; do not delete quarantine yet. `.ha-git` copies are backups, not automatically active packages.
 
-The user ran a read-only HA-side source export on 2026-09-18. Reported output:
+## Actual next steps and safeguards
 
-```text
-Version: 1.0.9
-Antal källfiler: 14
-ZIP: /config/motogp_source_review.zip
-Storlek: 28,424 bytes
-Inga integrationsfiler har ändrats.
-Ingen omstart behövs.
-```
+1. **Reproducible backend snapshot:** transfer a reviewed exact source snapshot (prefer the five modified source files with a reproducible upstream v1.0.9 reference, or exact checked ZIP) onto `dev`; validate its hashes against the uploaded inventory. Repository documentation alone does not make the full source version-controlled. Inspect `motogp_*.sh` scripts for provenance, detect duplicated/obsolete mutations, and document build and rollback.
+2. **History API:** test a real old event/category/session UUID including Moto2 FP1, verify real response structure and delayed publication; integrate `ResultArchive` via the installed coordinator/API and HA Store with an explicit results action and no-spoiler checks at the response/UI boundary.
+3. **Race transition:** verify whether post-race `next_event` switching can temporarily disagree with cached `weekend_sessions_all`; test with realistic event data before attempting a fix.
+4. **Cleanup and UI:** inventory active package references, keep legacy dashboard untouched, implement known frontend polish under a new dev build, verify in Card-test and clean quarantine only after explicit verification.
+5. **Release discipline:** code and tests on `dev`, document CI versus HA validation, check install/rollback, then reviewed PR `dev → beta → main`. No blind update of running integration and no unverified claim of parity.
 
-**The ZIP remains on the user's HA host; its actual bytes, individual SHA-256 hashes and file content have not been supplied.** Successful export is not proof that all source files are safe to publish or that GitHub is synchronized. Review/redact before transferring. Do not commit unreviewed sources.
-
-Only include reviewed project-owned `.py` files and `manifest.json` from `/config/custom_components/motogp_sensor/`. Never include `/config/secrets.yaml`, `.storage`, tokens, credentials, cookies, the recorder database, `.ha-git` backups, quarantine or all of `/config`. A sanitized copy of the retained package can be considered separately. If any source embeds API tokens/credentials, redact before sharing and never commit them.
-
-When the ZIP is available: inspect inventory and checksums, compare against upstream v1.0.9 **first** (the reported installed version), then assess differences from upstream v1.0.10 and the old v1.0.10-only patch. Identify all deployed changes, ownership and conflicts; turn them into a reproducible patch/integration with tests; document install/rollback and configuration schema; only then wire in the isolated results archive. Never run the old patch with `--force` to bridge this discrepancy.
-
-## 4. One rule for every future change
-
-Change proposal → identify owning source file and branch → update code and tests on `dev` → document what was tested in GitHub CI versus actual HA → deploy in separate test view/integration with version or hashes → verify/no-spoiler/restart/rollback → explicitly remove or quarantine replaced HA files after reference audit → promote via reviewed PR `dev → beta → main`. Every deletion must list the replacement and remaining references. Do not keep two active packages defining the same helper and do not treat a Lovelace `type:` card as a HA package.
-
-## 5. Remaining validation tickets
-
-- Obtain the exported source ZIP, inspect actual contents, sync the version 1.0.9-derived multicategory implementation; **blocking** for live historical-results integration and TV-delay modifications.
-- Capture live package and dashboard/resource inventory; determine if any quarantined YAML is referenced and whether archive can safely be purged.
-- Validate API data for a real older Moto2 FP1 and other categories; fake-API unit tests are insufficient.
-- Verify archive persistence under real HA Store, spoiler behavior on async completion, race transitions, API outage and rollback.
-- Address known JS polish on `dev` with a new build/version and actual Card-test verification; keep `beta`, `main`, original dashboard untouched meanwhile.
+Track source reconciliation under [issue #1](https://github.com/Jocke1970/ha-motogp/issues/1).
