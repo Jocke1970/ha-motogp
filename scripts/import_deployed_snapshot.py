@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
-"""Verify/extract the reviewed 2026-09-18 HA MotoGP source snapshot.
+"""Import/verify the exact, user-reviewed MotoGP integration snapshot (v1.0.9).
 
-Source is 6 base64 parts under backend/deployed/v1.0.9/snapshot/.
-Run --verify to compare the committed source against the exact uploaded capture.
-Run --write only on a clean dev checkout; differing existing files are NEVER overwritten.
-Do not execute this script on the live HA installation.
+This modifies a Git checkout only. It never writes to the running HA integration.
+Usage:
+  python3 scripts/import_deployed_snapshot.py --archive /config/motogp_source_review.zip \
+    --live-dir /config/custom_components/motogp_sensor --write
+  python3 scripts/import_deployed_snapshot.py --verify
 """
 from __future__ import annotations
 
 import argparse
 import ast
-import base64
 import hashlib
-import io
 import json
-import lzma
 from pathlib import Path
 import re
-import tarfile
+import sys
+from zipfile import ZipFile
 
-PART_COUNT = 6
-ARCHIVE_SHA256 = "a17d395bfb9705cd9c11c27350e3c084c6297788b54c82acc78bcc6b954f4fad"
+CAPTURE_ZIP_SHA256 = "da753fc45010da43daaada9c5cf36621c424f36485a12fabd04437a8fc4fef68"
 FILES = {
     "__init__.py": "0c86a72c003f9df433a43cb7eb204c52aa107d6364d8faf45ff3b43925fd2f7f",
     "api.py": "6abdc1cd4a4065044fd1728e3ead2a055215c9b62e75d5b7ad4b839f1950e081",
@@ -39,74 +37,90 @@ FILES = {
 }
 
 
-def sha(data: bytes) -> str:
+def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def load_snapshot(root: Path) -> dict[str, bytes]:
-    folder = root / "backend/deployed/v1.0.9/snapshot"
-    parts = [folder / f"part{i:02d}.b64" for i in range(1, PART_COUNT + 1)]
-    encoded = "".join(p.read_text(encoding="ascii").strip() for p in parts)
-    compressed = base64.b64decode(encoded, validate=True)
-    if sha(compressed) != ARCHIVE_SHA256:
-        raise ValueError("Compressed snapshot checksum mismatch: stop, do not write")
-    data = lzma.decompress(compressed)
-    expected = {"motogp_sensor/" + name for name in FILES} | {"INVENTORY.txt"}
-    results: dict[str, bytes] = {}
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as archive:
-        members = archive.getmembers()
-        if len(members) != len(expected) or {m.name for m in members} != expected:
-            raise ValueError("Snapshot file inventory differs from 14 source files + INVENTORY.txt")
-        for member in members:
-            if not member.isfile() or member.size > 2_000_000:
-                raise ValueError("Unexpected snapshot member type/size")
-            results[member.name] = archive.extractfile(member).read()
-    inventory = results["INVENTORY.txt"].decode("utf-8")
-    for name, expected_hash in FILES.items():
-        content = results["motogp_sensor/" + name]
-        if sha(content) != expected_hash:
-            raise ValueError(f"Wrong SHA-256 for {name}")
-        entry = rf"(?m)^{expected_hash}\s+{len(content)} bytes\s+{re.escape(name)}$"
-        if not re.search(entry, inventory):
-            raise ValueError(f"INVENTORY.txt inconsistent for {name}")
+def check_source(files: dict[str, bytes], context: str) -> None:
+    for name, expected in FILES.items():
+        if name not in files or digest(files[name]) != expected:
+            raise ValueError(f"{context}: SHA-256 mismatch or missing: {name}")
         if name.endswith(".py"):
-            ast.parse(content.decode("utf-8"), filename=name)
-    manifest = json.loads(results["motogp_sensor/manifest.json"])
+            ast.parse(files[name].decode("utf-8"), filename=name)
+    manifest = json.loads(files["manifest.json"])
     if manifest.get("domain") != "motogp_sensor" or manifest.get("version") != "1.0.9":
-        raise ValueError("Unexpected manifest domain/version")
-    return results
+        raise ValueError(f"{context}: unexpected manifest domain or version")
 
 
-def main() -> None:
+def load_capture(path: Path) -> tuple[dict[str, bytes], bytes]:
+    if not path.is_file() or digest(path.read_bytes()) != CAPTURE_ZIP_SHA256:
+        raise ValueError("Source ZIP missing or differs from reviewed 2026-09-18 capture")
+    with ZipFile(path) as archive:
+        if archive.testzip() is not None:
+            raise ValueError("ZIP CRC failure")
+        expected = {f"motogp_sensor/{name}" for name in FILES} | {"INVENTORY.txt"}
+        if set(archive.namelist()) != expected or len(archive.namelist()) != len(expected):
+            raise ValueError("ZIP has unexpected files; no extraction performed")
+        files = {name: archive.read(f"motogp_sensor/{name}") for name in FILES}
+        inventory = archive.read("INVENTORY.txt")
+    check_source(files, "Archive")
+    text = inventory.decode("utf-8")
+    for name, data in files.items():
+        line = rf"(?m)^{digest(data)}\s+{len(data)} bytes\s+{re.escape(name)}$"
+        if not re.search(line, text):
+            raise ValueError(f"Inventory mismatch: {name}")
+    return files, inventory
+
+
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--write", action="store_true", help="Extract exact reviewed files into dev checkout")
-    parser.add_argument("--verify", action="store_true", help="Verify existing committed source against capture")
+    modes = parser.add_mutually_exclusive_group(required=True)
+    modes.add_argument("--write", action="store_true", help="Import into Git checkout without overwriting differing source")
+    modes.add_argument("--verify", action="store_true", help="Verify already tracked snapshot without ZIP")
+    parser.add_argument("--archive", type=Path, help="Exact reviewed ZIP; required with --write")
+    parser.add_argument("--live-dir", type=Path, help="Compare against current running HA Python (read-only)")
     args = parser.parse_args()
-    if args.write == args.verify:
-        parser.error("Choose exactly one: --write or --verify")
-    root = Path(__file__).resolve().parents[1]
-    captured = load_snapshot(root)
-    target = root / "backend/deployed/v1.0.9"
-    destinations = {
-        (target / "custom_components" / name).resolve(): content
-        for name, content in captured.items()
-        if name != "INVENTORY.txt"
-        for name in [name.replace("motogp_sensor/", "motogp_sensor/", 1)]
-    }
-    # Above paths correspond to custom_components/motogp_sensor/<filename>.
-    destinations[(target / "INVENTORY.txt").resolve()] = captured["INVENTORY.txt"]
-    for path, expected in destinations.items():
-        if path.exists() and path.read_bytes() != expected:
-            raise ValueError(f"STOP: existing tracked source differs; no overwrite: {path}")
-        if args.verify and not path.is_file():
-            raise ValueError(f"Missing committed file: {path}")
-    if args.write:
-        for path, content in destinations.items():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            if not path.exists():
-                path.write_bytes(content)
-    print(f"PASS: {len(FILES)} captured source files and INVENTORY, exact SHA-256 match; mode={'write' if args.write else 'verify'}")
+    repo = Path(__file__).resolve().parents[1]
+    dest = repo / "backend/deployed/v1.0.9"
+    source_dir = dest / "custom_components/motogp_sensor"
+
+    if args.verify:
+        tracked = {name: (source_dir / name).read_bytes() for name in FILES}
+        check_source(tracked, "Committed source")
+        inv = dest / "INVENTORY.txt"
+        if not inv.is_file():
+            raise ValueError("Committed INVENTORY.txt missing")
+        text = inv.read_text(encoding="utf-8")
+        for name, data in tracked.items():
+            if not re.search(rf"(?m)^{digest(data)}\s+{len(data)} bytes\s+{re.escape(name)}$", text):
+                raise ValueError(f"Committed inventory mismatch: {name}")
+        print("PASS: 14 tracked files and inventory match exported HA snapshot (SHA-256 + Python syntax).")
+        return 0
+
+    if args.archive is None:
+        parser.error("--write requires --archive")
+    files, inventory = load_capture(args.archive)
+    if args.live_dir is not None:
+        if not args.live_dir.is_dir():
+            raise ValueError("--live-dir does not exist; stopped")
+        live = {name: (args.live_dir / name).read_bytes() for name in FILES}
+        if any(live[name] != files[name] for name in FILES):
+            raise ValueError("Live HA source differs from capture. Re-export; no source files were written.")
+    targets = {source_dir / name: content for name, content in files.items()}
+    targets[dest / "INVENTORY.txt"] = inventory
+    for target, content in targets.items():
+        if target.exists() and target.read_bytes() != content:
+            raise ValueError(f"Refusing to overwrite changed Git file: {target}")
+    for target, content in targets.items():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            target.write_bytes(content)
+    print("PASS: captured 14 exact files + inventory into Git checkout; running HA untouched.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, SyntaxError, json.JSONDecodeError) as exc:
+        sys.exit(f"STOPP: {exc}")
