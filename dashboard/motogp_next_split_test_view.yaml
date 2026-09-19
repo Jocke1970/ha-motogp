@@ -1,20 +1,29 @@
-# New test VIEW example. Add as a NEW view, not as dashboard root.
-# Requires both /local/ha-motogp-next-card.js (dev.4) and
-# /local/ha-motogp-next-split.js (split.1) registered as JavaScript modules.
-# Does NOT replace original MotoGP, Card-test or existing motogp-test views.
+# Complete YAML for a dedicated test VIEW only (NOT dashboard root).
+# In Home Assistant: edit the VIEW YAML, not an individual card's YAML.
+# Preserve the original MotoGP dashboard, Card-test mobile view and existing
+# motogp-test if you are using this as a separate comparison tab.
+# Resources already required:
+# /local/ha-motogp-next-card.js?v=0.2.0-dev.4-next-20260919-04
+# /local/ha-motogp-next-split.js?v=split-20260919-02
+# Both sections span TWO section columns on wide screens. A narrow browser
+# viewport or edit preview may still collapse to one column responsively.
 title: MotoGP Next Split
 type: sections
 path: motogp-next-split
 max_columns: 2
+dense_section_placement: false
 sections:
   - type: grid
+    column_span: 2
     cards:
       - type: custom:ha-motogp-next-overview-card
         grid_options:
           columns: full
+          rows: auto
   - type: grid
     column_span: 2
     cards:
       - type: custom:ha-motogp-next-timing-card
         grid_options:
           columns: full
+          rows: auto
