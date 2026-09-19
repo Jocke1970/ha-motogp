@@ -11,7 +11,7 @@
 2. Markera inte okvalificerade förare (`position <= 0`), ogiltiga nollvarv eller ofullständiga data som klara för Q2. Använd endast sessionens matchade förardata; ingen läcka från föregående pass eller annan klass. Om positionerna inte är tillförlitliga, utelämna markeringen och visa att kvalgränsen är okänd.
 3. Efter Q1: formulera inte `VIDARE` definitivt förrän resultatet har bekräftats; en bekräftad klassificering ska prioriteras. Sensorstatus `F` räcker inte ensam för att bevisa officiell klassificering.
 4. Under **Q2**: ta bort Q1-gränsen. En separat startgrid kan grupperas 1–3 `Led 1`, 4–6 `Led 2`, osv. MotoGP Q2 ger preliminärt led 1–4 (platser 1–12), Moto2/Moto3 preliminärt led 1–6 (platser 1–18). Använd separat verifierad gridinformation och respektera eventuella gridstraff före slutgiltig etikett.
-5. Under Sprint/Race: ingen Q1-indikering i live timing; visa i stället gaptrend enligt originalkortets verifierade betydelse (grön upp = minskande gap, röd ned = ökande), separat per event/klass/session och utan att blanda TV-delay eller nulldata.
+5. Under Sprint/Race: ingen Q1-indikering i live timing. Användaren rapporterar att originaldashboarden har färgade gaptrendpilar, men betydelse, källfält och faktisk implementation måste verifieras mot exakt aktuell dashboardkälla före migration. Föreslagen UX efter verifiering: grön upp för minskande gap, röd ned för ökande gap. Historik separat per event/klass/session, ingen blandning av TV-delay, okända värden eller positionsbyten.
 6. Synlighet/UX: stark kontrast i ljust och mörkt tema, inte bara färg som signal; skärmläsartext `Preliminärt vidare till Q2`, status på svenska. Ingen HA-service vid klick.
 
 ## Implementationsgräns
