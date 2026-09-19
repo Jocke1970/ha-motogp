@@ -1,0 +1,20 @@
+# New test VIEW example. Add as a NEW view, not as dashboard root.
+# Requires both /local/ha-motogp-next-card.js (dev.4) and
+# /local/ha-motogp-next-split.js (split.1) registered as JavaScript modules.
+# Does NOT replace original MotoGP, Card-test or existing motogp-test views.
+title: MotoGP Next Split
+type: sections
+path: motogp-next-split
+max_columns: 2
+sections:
+  - type: grid
+    cards:
+      - type: custom:ha-motogp-next-overview-card
+        grid_options:
+          columns: full
+  - type: grid
+    column_span: 2
+    cards:
+      - type: custom:ha-motogp-next-timing-card
+        grid_options:
+          columns: full
