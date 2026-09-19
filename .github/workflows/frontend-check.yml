@@ -23,6 +23,7 @@ jobs:
           node --check frontend/ha-motogp-next-card.js
           node --check frontend/ha-motogp-next-split.js
           node --check frontend/ha-motogp-next-split-enhancements.js
+          node --check frontend/ha-motogp-next-gap-trends.js
       - name: Original frontend smoke tests
         env:
           TZ: Europe/Stockholm
@@ -47,3 +48,7 @@ jobs:
         env:
           TZ: Europe/Stockholm
         run: node tests/frontend-next-split-enhancements.cjs
+      - name: Gap trend and fastest lap regression
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-next-gap-trends.cjs
