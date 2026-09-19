@@ -1,0 +1,27 @@
+name: MotoGP Next single-resource regression
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [main, beta]
+
+permissions:
+  contents: read
+
+jobs:
+  next-one:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Europe/Stockholm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build pinned single file and check JavaScript
+        run: |
+          python3 scripts/build-next-one.py frontend /tmp/ha-motogp-next.js
+          node --check /tmp/ha-motogp-next.js
+      - name: Session transitions, Q1, local timer, spoiler and 15-minute cleanup
+        run: node tests/frontend-next-one.cjs /tmp/ha-motogp-next.js
