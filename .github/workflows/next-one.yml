@@ -23,9 +23,10 @@ jobs:
         run: |
           python3 scripts/build-next-one.py frontend /tmp/ha-motogp-next.js
           node --check /tmp/ha-motogp-next.js
+          test "$(git hash-object dist/ha-motogp-next.js)" = "$(git hash-object /tmp/ha-motogp-next.js)"
       - name: Session transitions, Q1, local timer, spoiler and 15-minute cleanup
         run: node tests/frontend-next-one.cjs /tmp/ha-motogp-next.js
-      - name: Installer syntax, same-file repeatability and unexpected-file refusal
+      - name: Installer syntax, offline repeatability, tamper and checksum safeguards
         run: |
           set -euo pipefail
           bash -n scripts/install-next-one.sh
@@ -33,8 +34,7 @@ jobs:
           trap 'rm -rf -- "$staging"' EXIT
           mkdir -p "$staging/www"
           export MOTOGP_WWW_DIR="$staging/www"
-          export MOTOGP_SOURCE_DIR="$PWD/frontend"
-          export MOTOGP_BUILDER_FILE="$PWD/scripts/build-next-one.py"
+          export MOTOGP_BUNDLE_FILE="$PWD/dist/ha-motogp-next.js"
           bash scripts/install-next-one.sh
           node --check "$staging/www/ha-motogp-next.js"
           sha="$(git hash-object "$staging/www/ha-motogp-next.js")"
@@ -43,6 +43,15 @@ jobs:
           test "$sha" = "$(git hash-object "$staging/www/ha-motogp-next.js")"
           printf '\n/* tampered */\n' >> "$staging/www/ha-motogp-next.js"
           if bash scripts/install-next-one.sh; then
-            echo 'ERROR: installer accepted tampered JS' >&2
+            echo 'ERROR: installer accepted modified destination' >&2
             exit 1
           fi
+          test "$(git hash-object "$staging/www/ha-motogp-next.js")" != "$sha"
+          rm -- "$staging/www/ha-motogp-next.js"
+          printf '\n/* tampered */\n' > "$staging/tampered.js"
+          export MOTOGP_BUNDLE_FILE="$staging/tampered.js"
+          if bash scripts/install-next-one.sh; then
+            echo 'ERROR: installer accepted modified source' >&2
+            exit 1
+          fi
+          test ! -e "$staging/www/ha-motogp-next.js"
