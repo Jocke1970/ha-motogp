@@ -1,86 +1,128 @@
-/* MotoGP Next: isolated JS migration for motogp-test. Legacy card remains untouched. */
+/* MotoGP Next: isolated frontend for motogp-test. No HA writes or service calls. */
 (() => {
   'use strict';
   const TAG = 'ha-motogp-next-card';
-  const VERSION = '0.2.0-dev.3';
-  const BUILD = 'next-20260918-03';
+  const VERSION = '0.2.0-dev.4';
+  const BUILD = 'next-20260919-04';
   if (customElements.get(TAG)) {
     console.warn(`[${TAG}] Already registered. Reload the browser to load a changed JS resource.`);
     return;
   }
   const IDS = Object.freeze({
-    race:'sensor.motogp_next_race', session:'sensor.motogp_current_session',
-    status:'sensor.motogp_session_status', riders:'sensor.motogp_rider_positions',
-    laps:'sensor.motogp_race_lap_count', remaining:'sensor.motogp_session_time_remaining',
-    weather:'sensor.motogp_track_weather', spoiler:'switch.motogp_no_spoiler'
+    race: 'sensor.motogp_next_race', session: 'sensor.motogp_current_session',
+    status: 'sensor.motogp_session_status', riders: 'sensor.motogp_rider_positions',
+    laps: 'sensor.motogp_race_lap_count', remaining: 'sensor.motogp_session_time_remaining',
+    weather: 'sensor.motogp_track_weather', spoiler: 'switch.motogp_no_spoiler'
   });
   const WD = ['SÖNDAG','MÅNDAG','TISDAG','ONSDAG','TORSDAG','FREDAG','LÖRDAG'];
   const MONTH = ['JAN','FEB','MAR','APR','MAJ','JUN','JUL','AUG','SEP','OKT','NOV','DEC'];
-  const esc = v => String(v ?? '').replace(/[&<>"']/g,c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
-  const valid = v => v != null && !['','unknown','unavailable','none','hidden','null'].includes(String(v).trim().toLowerCase());
-  const cat = v => {
-    const s = String(v || '').trim();
-    const m = /moto\s*(gp|2|3|e)/i.exec(s);
-    return m ? ({gp:'MotoGP','2':'Moto2','3':'Moto3',e:'MotoE'})[m[1].toLowerCase()] : s;
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, char =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const valid = value => value != null &&
+    !['', 'unknown', 'unavailable', 'none', 'hidden', 'null'].includes(String(value).trim().toLowerCase());
+  const cat = value => {
+    const raw = String(value || '').trim();
+    const match = /moto\s*(gp|2|3|e)/i.exec(raw);
+    return match ? ({gp:'MotoGP','2':'Moto2','3':'Moto3',e:'MotoE'})[match[1].toLowerCase()] : raw;
   };
-  const sess = v => ({RAC:'Race',SPR:'Sprint',PR:'Practice',WUP:'Warm Up'})[String(v || '').toUpperCase()] || String(v || '');
-  const keyName = v => String(sess(v)).trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const canon = v => String(v || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const pad = n => String(n).padStart(2,'0');
+  const sess = value => ({RAC:'Race',SPR:'Sprint',PR:'Practice',WUP:'Warm Up'})[String(value || '').toUpperCase()] || String(value || '');
+  const keyName = value => String(sess(value)).trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const canon = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const pad = n => String(n).padStart(2, '0');
   const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  // These backend strings carry event wall time despite their +00:00 suffix.
-  // Treat HH:MM as reported until source timezone metadata is corrected upstream.
+  // Preserve reported event wall time; source currently marks wall-clock schedule with +00:00.
   function parseWall(raw) {
     const m = String(raw || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
     if (!m) return null;
-    const date = new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);
-    return Number.isNaN(date.getTime()) ? null : {date,day:`${m[1]}-${m[2]}-${m[3]}`,time:`${m[4]}:${m[5]}`};
+    const date = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]);
+    return Number.isNaN(date.getTime()) ? null :
+      {date, day: `${m[1]}-${m[2]}-${m[3]}`, time: `${m[4]}:${m[5]}`};
   }
-  const dayName = day => { const d=new Date(`${day}T12:00:00`); return `${WD[d.getDay()]} ${d.getDate()} ${MONTH[d.getMonth()]}`; };
-  function dateRange(start,end) {
-    const a=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(start||'')),b=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(end||''));
-    if (!a||!b) return [start,end].filter(valid).join(' – ');
-    if (a[1]===b[1]&&a[2]===b[2]) return `${+a[3]}–${+b[3]} ${MONTH[+a[2]-1].toLowerCase()}`;
+  const dayName = day => {
+    const d = new Date(`${day}T12:00:00`);
+    return `${WD[d.getDay()]} ${d.getDate()} ${MONTH[d.getMonth()]}`;
+  };
+  function dateRange(start, end) {
+    const a = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(start||''));
+    const b = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(end||''));
+    if (!a || !b) return [start,end].filter(valid).join(' – ');
+    if (a[1] === b[1] && a[2] === b[2]) return `${+a[3]}–${+b[3]} ${MONTH[+a[2]-1].toLowerCase()}`;
     return `${+a[3]} ${MONTH[+a[2]-1].toLowerCase()} – ${+b[3]} ${MONTH[+b[2]-1].toLowerCase()}`;
   }
   function sessionsFor(race) {
-    const a=race?.attributes||{};
-    const source=Array.isArray(a.sessions_all)?a.sessions_all:Array.isArray(a.sessions)?a.sessions:[];
-    const start=String(a.date_start||'').slice(0,10),end=String(a.date_end||'').slice(0,10);
-    return source.filter(s=>s&&parseWall(s.date)).map(s=>({...s,_wall:parseWall(s.date),_cat:cat(s.category||'MotoGP'),_name:sess(s.name||s.type)}))
-      .filter(s=>(!start||s._wall.day>=start)&&(!end||s._wall.day<=end)).sort((x,y)=>x._wall.date-y._wall.date);
+    const a = race?.attributes || {};
+    const source = Array.isArray(a.sessions_all) ? a.sessions_all : Array.isArray(a.sessions) ? a.sessions : [];
+    const start = String(a.date_start || '').slice(0,10), end = String(a.date_end || '').slice(0,10);
+    return source.filter(s => s && parseWall(s.date))
+      .map(s => ({...s, _wall:parseWall(s.date), _cat:cat(s.category || 'MotoGP'), _name:sess(s.name || s.type)}))
+      .filter(s => (!start || s._wall.day >= start) && (!end || s._wall.day <= end))
+      .sort((a,b) => a._wall.date - b._wall.date);
   }
-  function reading(raw,unit) {
+  function reading(raw, unit) {
     if (!valid(raw)) return '—';
-    const n=Number(String(raw).replace(',','.').replace(/\s*(°|º|C|%|celsius)\s*$/i,''));
-    return Number.isFinite(n)&&n!==0?`${n}${unit}`:'—';
+    const n = Number(String(raw).replace(',','.').replace(/\s*(°|º|C|%|celsius)\s*$/i,''));
+    return Number.isFinite(n) && n !== 0 ? `${n}${unit}` : '—';
   }
-  const active=st=>['I','S'].includes(String(st?.attributes?.session_status_id||'').toUpperCase())||st?.state==='In Progress';
-  const finished=st=>['F','C'].includes(String(st?.attributes?.session_status_id||'').toUpperCase())||st?.state==='Finished';
-  const explicitFinish=s=>['FINISHED','CANCELLED','CANCELED'].includes(String(s.status||'').toUpperCase());
-  const sortedRiders=e=>Array.isArray(e?.attributes?.riders)?e.attributes.riders.slice().sort((a,b)=>
-    (Number(a.position)>0?Number(a.position):999)-(Number(b.position)>0?Number(b.position):999)):[];
-  const safeColor=c=>/^#?[0-9a-f]{6}$/i.test(String(c||''))?`#${String(c).replace('#','')}`:'#94a3b8';
-  // Fail closed when the feed's own event, category or session identity conflicts.
-  // The synchronized backend exports these attributes on all three sensors.
-  function matchingLive(race,se,st,positions,day) {
-    if (!active(st)||!valid(race?.state)||!valid(se?.state)) return null;
-    const sa=se.attributes||{},ta=st.attributes||{},pa=positions?.attributes||{};
-    const name=keyName(se.state),category=cat(sa.category||ta.category);
-    if (!name||!category||!valid(sa.event)||!valid(ta.event)||!valid(pa.event)||
-        !valid(pa.category)||!valid(pa.session_shortname)||!valid(ta.session_shortname)) return null;
-    const events=[race.state,sa.event,ta.event,pa.event].map(canon);
-    if (events.some(e=>!e||e!==events[0])) return null;
-    if (cat(ta.category)!==category||cat(pa.category)!==category) return null;
-    if (keyName(ta.session_shortname)!==name||keyName(pa.session_shortname)!==name) return null;
-    if (valid(sa.session_shortname)&&keyName(sa.session_shortname)!==name) return null;
+  const active = st => ['I','S'].includes(String(st?.attributes?.session_status_id || '').toUpperCase()) || st?.state === 'In Progress';
+  const finished = st => String(st?.attributes?.session_status_id || '').toUpperCase() === 'F' || st?.state === 'Finished';
+  const explicitFinish = s => ['FINISHED','CANCELLED','CANCELED'].includes(String(s.status || '').toUpperCase());
+  const sortedRiders = entity => Array.isArray(entity?.attributes?.riders) ?
+    entity.attributes.riders.filter(r => r && typeof r === 'object').slice().sort((a,b) =>
+      (Number(a.position)>0 ? Number(a.position) : 999) - (Number(b.position)>0 ? Number(b.position) : 999)) : [];
+  const safeColor = raw => /^#?[0-9a-f]{6}$/i.test(String(raw || '')) ? `#${String(raw).replace('#','')}` : '#94a3b8';
+  const nonzero = raw => { const n = Number(raw); return valid(raw) && Number.isFinite(n) && n > 0 ? n : null; };
+  const clock = raw => {
+    const n = nonzero(raw);
+    return n === null ? '' : `${Math.floor(n/60)}:${pad(Math.floor(n%60))}`;
+  };
+  const lapTime = raw => !valid(raw) || /^0+(?:[.:']0+)?$/.test(String(raw).trim()) ? '—' : String(raw);
+  // The calendar uses an unsponsored event name; live API often prepends a title sponsor.
+  // Require agreement among live sensors, a substantial calendar-name match, exact class,
+  // exact session and exactly one matching session in today's weekend schedule.
+  function matchingLive(race, se, st, positions, today) {
+    if (!active(st) || !valid(race?.state) || !valid(se?.state)) return null;
+    const sa=se.attributes||{}, ta=st.attributes||{}, pa=positions?.attributes||{};
+    const category=cat(sa.category), name=keyName(se.state);
+    if (!category || !name || ![sa.event,ta.event,pa.event].every(valid) ||
+        !valid(ta.category) || !valid(pa.category) ||
+        !valid(ta.session_shortname) || !valid(pa.session_shortname)) return null;
+    const events=[sa.event,ta.event,pa.event].map(canon), calendar=canon(race.state);
+    if (events.some(x => x !== events[0]) || calendar.length < 8 ||
+        !(events[0].includes(calendar) || calendar.includes(events[0]))) return null;
+    if (cat(ta.category)!==category || cat(pa.category)!==category ||
+        keyName(ta.session_shortname)!==name || keyName(pa.session_shortname)!==name ||
+        (valid(sa.session_shortname) && keyName(sa.session_shortname)!==name)) return null;
     const ids=[sa.championship_id,ta.championship_id,pa.championship_id].filter(valid).map(String);
-    if (new Set(ids).size>1) return null;
-    const same=sessionsFor(race).filter(s=>s._wall.day===day&&s._cat===category&&keyName(s._name)===name);
-    if (same.length!==1) return null; // not the displayed weekend, or ambiguous session
-    return {key:`${events[0]}|${day}|${category}|${name}|${same[0].id||same[0].date}`,name:sess(se.state),category};
+    if (new Set(ids).size > 1) return null;
+    // Do not expose unbuffered raw live timing while requested TV-delay is not ready.
+    const requested=nonzero(pa.tv_delay_seconds);
+    if (requested && pa.tv_delay_ready === false) return null;
+    const matches=sessionsFor(race).filter(s => s._wall.day===today && s._cat===category && keyName(s._name)===name);
+    if (matches.length!==1) return null;
+    return {key:`${calendar}|${today}|${category}|${name}|${matches[0].id || matches[0].date}`,
+      name:sess(se.state), category};
   }
-  const CSS=`
+  function timingInfo(live, states, ids) {
+    if (!live) return [];
+    const remain=states[ids.remaining], laps=states[ids.laps];
+    const now=nonzero(laps?.state), total=nonzero(laps?.attributes?.num_laps);
+    const isRace=['RACE','SPRINT'].includes(String(live.name).toUpperCase());
+    const out=[];
+    if (isRace && total !== null) {
+      if (now !== null) out.push(`Varv ${now}/${total}`);
+      else out.push(`${total} varv`);
+      if (now !== null) out.push(`${Math.max(0,total-now)} varv kvar`);
+    } else {
+      const countdown=clock(remain?.state);
+      if (countdown) out.push(`${countdown} kvar`);
+      if (isRace && now !== null) out.push(`Varv ${now}`);
+    }
+    // Informational only; do not interpolate the sensor value locally (TV spoiler risk).
+    const delay=nonzero(states[ids.status]?.attributes?.tv_delay_effective_seconds);
+    if (delay !== null) out.push(`TV-delay ${delay} s`);
+    return out;
+  }
+  const CSS = `
     :host{display:block;min-width:0;color:var(--primary-text-color)}*{box-sizing:border-box}
     .root{display:grid;gap:12px;font-family:var(--primary-font-family,inherit)}
     .panel{background:var(--ha-card-background,var(--card-background-color,#fff));border:1px solid var(--divider-color,#ddd);border-radius:15px;overflow:hidden;min-width:0}
@@ -110,9 +152,11 @@
     .rider.labels{font-weight:800;color:var(--secondary-text-color);font-size:10px}
     .rider .person{min-width:0}.rider .person b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rider .person small{display:block;color:var(--secondary-text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .line{height:25px;border-radius:5px}.num{text-align:right;font-variant-numeric:tabular-nums}.status{color:#e10600;font-size:11px;font-weight:900}
-    .timingmeta{display:flex;flex-wrap:wrap;gap:10px;padding:0 12px 10px;color:var(--secondary-text-color);font-size:11px}
+    .timingheadinfo{display:flex;flex-direction:column;align-items:flex-end;gap:2px;margin-left:auto;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+    .timingheadinfo small{font-size:10px;color:var(--secondary-text-color);font-weight:600}.timingtoggle{font-size:10px;color:var(--secondary-text-color);white-space:nowrap}
     .foot{text-align:right;font-size:10px;color:var(--secondary-text-color);padding:2px 5px}
-    @media(max-width:600px){.tiles{grid-template-columns:1fr}.weathergrid{grid-template-columns:repeat(2,minmax(0,1fr))}h2{font-size:18px}}
+    @media(max-width:600px){.timingbtn{gap:7px}.timingheadinfo{font-size:11px}.weathergrid{grid-template-columns:repeat(2,minmax(0,1fr))}h2{font-size:18px}}
+    @media(max-width:420px){.tiles{grid-template-columns:1fr}}
   `;
   class MotoGPNext extends HTMLElement {
     constructor() {
@@ -120,61 +164,66 @@
       this.shadowRoot.innerHTML=`<style>${CSS}</style><div id="app"></div>`;
       this._ids={...IDS};this._hass=null;this._refs=null;this._timer=null;
       this._filter='Total';this._dayOverrides=new Map();this._autoDays=new Set();
-      this._today='';this._event='';this._timingManual=null;this._activeKey='';this._snapshot=null;
-      this._live=null;
+      this._today='';this._event='';this._timingManual=null;this._activeKey='';this._snapshot=null;this._live=null;
       this.shadowRoot.addEventListener('click',e=>this._click(e));
     }
     setConfig(config) {
-      if(config?.type!==`custom:${TAG}`) throw new Error(`${TAG}: wrong card type`);
+      if (config?.type!==`custom:${TAG}`) throw new Error(`${TAG}: wrong card type`);
       this._ids={...IDS,...(config.entities||{})};this._refs=null;
-      if(this._hass)this._render();
+      if (this._hass) this._render();
     }
     set hass(hass) {
       this._hass=hass;
       const refs=Object.values(this._ids).map(id=>hass.states[id]);
-      if(!this._refs||refs.some((x,i)=>x!==this._refs[i])){this._refs=refs;this._render();}
+      if (!this._refs || refs.some((x,i)=>x!==this._refs[i])) {this._refs=refs;this._render();}
     }
-    connectedCallback(){if(!this._timer)this._timer=setInterval(()=>this._render(),30000);if(this._hass)this._render();}
-    disconnectedCallback(){if(this._timer)clearInterval(this._timer);this._timer=null;}
-    _spoiler(){const s=this._hass?.states||{};return s[this._ids.spoiler]?.state==='on'||
-      [this._ids.session,this._ids.status,this._ids.riders].some(id=>s[id]?.state==='Hidden'||s[id]?.attributes?.spoiler_mode===true);}
-    _expanded(day){return this._dayOverrides.has(day)?this._dayOverrides.get(day):this._autoDays.has(day);}
-    _click(e){const b=e.target.closest('button');if(!b||!this.shadowRoot.contains(b))return;
-      if(b.dataset.category!==undefined)this._filter=b.dataset.category;
-      else if(b.dataset.day!==undefined)this._dayOverrides.set(b.dataset.day,!this._expanded(b.dataset.day));
-      else if(b.dataset.timing!==undefined&&!this._spoiler()){
+    connectedCallback() {if (!this._timer) this._timer=setInterval(()=>this._render(),30000);if (this._hass)this._render();}
+    disconnectedCallback() {if (this._timer)clearInterval(this._timer);this._timer=null;}
+    _spoiler() {
+      const states=this._hass?.states||{};
+      return states[this._ids.spoiler]?.state==='on' ||
+        [this._ids.session,this._ids.status,this._ids.riders].some(id =>
+          states[id]?.state==='Hidden' || states[id]?.attributes?.spoiler_mode===true);
+    }
+    _expanded(day) {return this._dayOverrides.has(day)?this._dayOverrides.get(day):this._autoDays.has(day);}
+    _click(e) {
+      const button=e.target.closest('button');
+      if (!button || !this.shadowRoot.contains(button))return;
+      if (button.dataset.category!==undefined)this._filter=button.dataset.category;
+      else if (button.dataset.day!==undefined)this._dayOverrides.set(button.dataset.day,!this._expanded(button.dataset.day));
+      else if (button.dataset.timing!==undefined && !this._spoiler()) {
         const open=this._timingManual===null?Boolean(this._snapshot||this._live):this._timingManual;
         this._timingManual=!open;
       }
-      this._render(); // all clicks local; no HA service/network calls
+      this._render(); // All clicks local: never call a Home Assistant service.
     }
-    _isActive(){return active(this._hass?.states?.[this._ids.status]);}
-    _track(now,race){
+    _track(now,race) {
       const today=dayKey(now),event=`${race?.state||''}|${race?.attributes?.date_start||''}|${race?.attributes?.date_end||''}`;
-      if(event!==this._event){this._event=event;this._dayOverrides.clear();this._timingManual=null;this._snapshot=null;this._activeKey='';}
-      if(today!==this._today){this._today=today;this._dayOverrides.clear();this._timingManual=null;
-        if(!this._isActive())this._snapshot=null;}
+      if (event!==this._event) {this._event=event;this._dayOverrides.clear();this._timingManual=null;this._snapshot=null;this._activeKey='';}
+      if (today!==this._today) {
+        this._today=today;this._dayOverrides.clear();this._timingManual=null;
+        if (!active(this._hass?.states?.[this._ids.status]))this._snapshot=null;
+      }
       this._live=null;
-      if(this._spoiler()){this._snapshot=null;this._activeKey='';this._timingManual=false;return;}
-      const s=this._hass.states,se=s[this._ids.session],st=s[this._ids.status],positions=s[this._ids.riders];
-      const live=matchingLive(race,se,st,positions,today);
-      if(active(st)){
-        if(!live){this._snapshot=null;this._activeKey='';this._timingManual=null;return;}
-        if(live.key!==this._activeKey){this._activeKey=live.key;this._timingManual=null;this._snapshot=null;}
+      if (this._spoiler()) {this._snapshot=null;this._activeKey='';this._timingManual=false;return;}
+      const states=this._hass.states,se=states[this._ids.session],st=states[this._ids.status];
+      const positions=states[this._ids.riders],live=matchingLive(race,se,st,positions,today);
+      if (active(st)) {
+        if (!live) {this._snapshot=null;this._activeKey='';this._timingManual=null;return;}
+        if (live.key!==this._activeKey) {this._activeKey=live.key;this._timingManual=null;this._snapshot=null;}
         this._live=live;
         const riders=sortedRiders(positions);
-        if(riders.length)this._snapshot={...live,day:today,riders};
-      } else if(finished(st)&&this._snapshot){
-        // A different completed session must not masquerade as our cached finish.
-        const currentCat=cat(se?.attributes?.category||st?.attributes?.category);
-        if(valid(se?.state)&&currentCat&&(`${currentCat}|${keyName(se.state)}`!==`${this._snapshot.category}|${keyName(this._snapshot.name)}`))this._snapshot=null;
+        if (riders.length)this._snapshot={...live,day:today,riders};
+      } else if (finished(st)&&this._snapshot) {
+        const category=cat(se?.attributes?.category||st?.attributes?.category);
+        if (valid(se?.state)&&category &&
+          `${category}|${keyName(se.state)}`!==`${this._snapshot.category}|${keyName(this._snapshot.name)}`)this._snapshot=null;
       }
     }
-    _schedule(race,now){
+    _schedule(race,now) {
       const all=sessionsFor(race),available=[...new Set(all.map(s=>s._cat))];
-      if(this._filter!=='Total'&&!available.includes(this._filter))this._filter='Total';
-      const sessions=all.filter(s=>this._filter==='Total'||s._cat===this._filter);
-      const st=this._hass.states[this._ids.status];
+      if (this._filter!=='Total'&&!available.includes(this._filter))this._filter='Total';
+      const sessions=all.filter(s=>this._filter==='Total'||s._cat===this._filter),st=this._hass.states[this._ids.status];
       const isLive=s=>Boolean(this._live)&&s._cat===this._live.category&&keyName(s._name)===keyName(this._live.name)&&s._wall.day===this._today;
       const past=s=>!isLive(s)&&(explicitFinish(s)||s._wall.date<now);
       const current=all.filter(s=>s._wall.day===this._today);
@@ -183,17 +232,19 @@
       const lastStart=current.length?Math.max(...current.map(s=>s._wall.date.getTime())):Infinity;
       const confirmedDone=current.length>0&&current.every(explicitFinish);
       const presumedDone=current.length>0&&now.getTime()>=lastStart+2*60*60*1000;
-      const previewTomorrow=hasTomorrow&&!active(st)&&(confirmedDone||presumedDone);
-      this._autoDays=new Set(current.length?[this._today]:[]);if(previewTomorrow)this._autoDays.add(tomorrow);
+      this._autoDays=new Set(current.length?[this._today]:[]);
+      if (hasTomorrow&&!active(st)&&(confirmedDone||presumedDone))this._autoDays.add(tomorrow);
       const next=sessions.find(isLive)||sessions.find(s=>!past(s));
       let html=`<section class="panel"><div class="head"><strong>🗓️ Helgens schema</strong><span class="muted">${esc(this._filter)} · ${sessions.length} pass`+
-        `${next?` · Nästa: ${esc(next._cat)} ${esc(next._name)} ${next._wall.time}`:''}</span></div>`;
+        `${next?` · ${isLive(next)?'Pågår':'Nästa'}: ${esc(next._cat)} ${esc(next._name)} ${next._wall.time}`:''}</span></div>`;
       html+=`<div class="cats">${['Total',...available].map(c=>`<button type="button" class="cat" data-category="${esc(c)}" ${this._filter===c?'selected':''} aria-pressed="${this._filter===c}">${esc(c)}</button>`).join('')}</div>`;
-      if(!sessions.length)return html+'<div class="empty">Inga pass i aktuell evenemangsdata för valt filter.</div></section>';
-      const groups=new Map();for(const s of sessions){if(!groups.has(s._wall.day))groups.set(s._wall.day,[]);groups.get(s._wall.day).push(s);}
-      for(const [day,items] of groups){
+      if (!sessions.length)return html+'<div class="empty">Inga pass i aktuell evenemangsdata för valt filter.</div></section>';
+      const groups=new Map();
+      for(const s of sessions) {if(!groups.has(s._wall.day))groups.set(s._wall.day,[]);groups.get(s._wall.day).push(s);}
+      for(const [day,items] of groups) {
         const open=this._expanded(day),upcoming=items.find(s=>!past(s));
-        const summary=upcoming?`Nästa ${upcoming._cat} ${upcoming._name} · ${upcoming._wall.time}`:items.every(explicitFinish)?'Klart':'Inga kommande starter';
+        const summary=upcoming?`${isLive(upcoming)?'Pågår':'Nästa'} ${upcoming._cat} ${upcoming._name} · ${upcoming._wall.time}`:
+          items.every(explicitFinish)?'Klart':'Inga kommande starter';
         const todayTag=day===this._today?'<span class="today-tag"> · IDAG</span>':'';
         html+=`<div class="day"><button class="daybtn ${day===this._today?'today':''}" type="button" data-day="${day}" aria-expanded="${open}"><span>${dayName(day)}${todayTag}</span><span class="summary">${items.length} pass · ${esc(summary)} ${open?'⌃':'⌄'}</span></button>`;
         if(open)html+=`<div class="tiles">${items.map(s=>{
@@ -205,46 +256,40 @@
       }
       return html+'</section>';
     }
-    _weather(){
+    _weather() {
       const a=this._hass.states[this._ids.weather]?.attributes||{};
-      const metrics=[['Luft',reading(a.air,'°C')],['Bana',reading(a.ground,'°C')],['Luftfuktighet',reading(a.humidity,'%')],
-        ['Underlag',valid(a.track)&&String(a.track)!=='0'?String(a.track):'—']];
+      const metrics=[['Luft',reading(a.air,'°C')],['Bana',reading(a.ground,'°C')],
+        ['Luftfuktighet',reading(a.humidity,'%')],['Underlag',valid(a.track)&&String(a.track)!=='0'?String(a.track):'—']];
       const desc=valid(a.weather)&&String(a.weather)!=='0'?String(a.weather):'';
       const head='<section class="panel"><div class="head"><strong>🌤️ Banväder</strong><span class="muted">Senast rapporterat · inte livegaranti</span></div>';
       if(metrics.every(([,v])=>v==='—')&&!desc)return head+'<div class="empty">Inga banväderdata rapporterade ännu.</div></section>';
-      return head+`<div class="weathergrid">${metrics.map(([k,v])=>`<div class="metric"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>`+
+      return head+`<div class="weathergrid">${metrics.map(([label,value])=>`<div class="metric"><span>${esc(label)}</span><b>${esc(value)}</b></div>`).join('')}</div>`+
         `${desc?`<div class="sub" style="padding:0 12px 12px">${esc(desc)}</div>`:''}</section>`;
     }
-    _timing(){
+    _timing() {
       if(this._spoiler())return '<section class="panel"><div class="head"><strong>🏁 Live timing</strong><span class="muted">Spoilerläge – dolt</span></div></section>';
       const states=this._hass.states,st=states[this._ids.status],live=this._live,snap=this._snapshot;
       const online=Boolean(live),name=online?live.name:snap?snap.name:'Ingen aktiv session';
       const category=online?live.category:snap?.category||'';
       const status=online?'● LIVE':active(st)?'VÄNTAR PÅ MATCHANDE DATA':snap?'SENASTE PASS':finished(st)?'AVSLUTAD':'VÄNTAR / OFFLINE';
       const open=this._timingManual===null?Boolean(snap||online):this._timingManual;
-      let html=`<section class="panel"><button type="button" class="timingbtn" data-timing aria-expanded="${open}"><span>🏍️ ${esc(category)} ${esc(name)}<br><span class="status">${esc(status)}</span></span><span class="muted">${open?'⌃ Dölj':'⌄ Visa'} förare</span></button>`;
+      const info=timingInfo(live,states,this._ids);
+      const timingHead=info.length?`<span class="timingheadinfo"><span>${esc(info[0])}</span>${info.slice(1).map(v=>`<small>${esc(v)}</small>`).join('')}</span>`:'';
+      let html=`<section class="panel"><button type="button" class="timingbtn" data-timing aria-expanded="${open}"><span>🏍️ ${esc(category)} ${esc(name)}<br><span class="status">${esc(status)}</span></span>${timingHead}<span class="timingtoggle">${open?'⌃ Dölj':'⌄ Visa'} förare</span></button>`;
       if(!open)return html+'</section>';
-      if(online){
-        const remaining=states[this._ids.remaining],lap=states[this._ids.laps];
-        const items=[];
-        if(valid(remaining?.state)&&String(remaining.state)!=='0')items.push(`Återstår: ${remaining.state}`);
-        if(valid(lap?.state)&&String(lap.state)!=='0')items.push(`Varv: ${lap.state}${valid(lap?.attributes?.num_laps)?`/${lap.attributes.num_laps}`:''}`);
-        const delay=st?.attributes?.tv_delay_effective_seconds;
-        if(Number.isFinite(Number(delay))&&Number(delay)>0)items.push(`TV-delay: ${delay} s`);
-        if(items.length)html+=`<div class="timingmeta">${items.map(v=>`<span>${esc(v)}</span>`).join('')}</div>`;
-      }
-      if(!snap?.riders.length||!online&&snap.day!==this._today)return html+'<div class="empty">Ingen säkerställd förardata för den aktuella sessionen ännu.</div></section>';
+      if(!snap?.riders.length||(!online&&snap.day!==this._today))return html+'<div class="empty">Ingen säkerställd förardata för den aktuella sessionen ännu.</div></section>';
       html+='<div class="riders"><div class="rider labels"><span>Pos</span><span></span><span>Förare / team</span><span>Varv</span><span>Senaste</span><span>Ledare</span><span>Före</span><span>Status</span></div>';
-      for(const r of snap.riders){
+      for(const r of snap.riders) {
         const p=Number(r.position),pos=p>0?p:'—',who=r.surname||r.shortname||r.firstname||'Okänd';
         const riderStatus=r.on_pit?'DEPÅ':valid(r.status_name)?r.status_name:valid(r.status_id)?r.status_id:'—';
+        const firstGap=p===1?'LEAD':lapTime(r.gap_first);
         html+=`<div class="rider"><b>${esc(pos)}</b><span class="line" style="background:${safeColor(r.color)}"></span><span class="person"><b>${esc(who)} · #${esc(r.number??'—')}</b><small>${esc(r.team||r.bike||'')}</small></span>`+
-          `<span class="num">${esc(r.num_lap??'—')}</span><span class="num">${esc(r.last_lap_time||'—')}</span><span class="num">${esc(p===1?'LEAD':r.gap_first||'—')}</span>`+
-          `<span class="num">${esc(p===1?'—':r.gap_prev||'—')}</span><span class="num">${esc(riderStatus)}</span></div>`;
+          `<span class="num">${esc(nonzero(r.num_lap)??'—')}</span><span class="num">${esc(lapTime(r.last_lap_time))}</span><span class="num">${esc(firstGap)}</span>`+
+          `<span class="num">${esc(p===1?'—':lapTime(r.gap_prev))}</span><span class="num">${esc(riderStatus)}</span></div>`;
       }
       return html+'</div></section>';
     }
-    _render(){
+    _render() {
       if(!this._hass)return;
       const now=new Date(),race=this._hass.states[this._ids.race],a=race?.attributes||{};
       this._track(now,race);
