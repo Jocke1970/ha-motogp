@@ -1,0 +1,50 @@
+name: Publish single MotoGP Next JS
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'frontend/ha-motogp-next-card.js'
+      - 'frontend/ha-motogp-next-split.js'
+      - 'frontend/ha-motogp-next-split-enhancements.js'
+      - 'frontend/ha-motogp-next-gap-trends.js'
+      - 'scripts/build-next-one.py'
+      - 'tests/frontend-next-one.cjs'
+      - '.github/workflows/next-one-distribute.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    env:
+      TZ: Europe/Stockholm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build and validate deliverable
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          python3 scripts/build-next-one.py frontend dist/ha-motogp-next.js
+          node --check dist/ha-motogp-next.js
+          node tests/frontend-next-one.cjs dist/ha-motogp-next.js
+          test "$(git hash-object dist/ha-motogp-next.js)" = bd8d9eb66bb867dd6552587d9850e7b41e05b1b6
+      - name: Publish only when the compiled JS differs
+        run: |
+          set -euo pipefail
+          git add -- dist/ha-motogp-next.js
+          if git diff --cached --quiet; then
+            echo 'Distribution already current.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Publish verified single MotoGP Next JavaScript bundle'
+          git push origin HEAD:dev
