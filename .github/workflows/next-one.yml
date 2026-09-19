@@ -25,3 +25,24 @@ jobs:
           node --check /tmp/ha-motogp-next.js
       - name: Session transitions, Q1, local timer, spoiler and 15-minute cleanup
         run: node tests/frontend-next-one.cjs /tmp/ha-motogp-next.js
+      - name: Installer syntax, same-file repeatability and unexpected-file refusal
+        run: |
+          set -euo pipefail
+          bash -n scripts/install-next-one.sh
+          staging="$(mktemp -d)"
+          trap 'rm -rf -- "$staging"' EXIT
+          mkdir -p "$staging/www"
+          export MOTOGP_WWW_DIR="$staging/www"
+          export MOTOGP_SOURCE_DIR="$PWD/frontend"
+          export MOTOGP_BUILDER_FILE="$PWD/scripts/build-next-one.py"
+          bash scripts/install-next-one.sh
+          node --check "$staging/www/ha-motogp-next.js"
+          sha="$(git hash-object "$staging/www/ha-motogp-next.js")"
+          test "$sha" = bd8d9eb66bb867dd6552587d9850e7b41e05b1b6
+          bash scripts/install-next-one.sh
+          test "$sha" = "$(git hash-object "$staging/www/ha-motogp-next.js")"
+          printf '\n/* tampered */\n' >> "$staging/www/ha-motogp-next.js"
+          if bash scripts/install-next-one.sh; then
+            echo 'ERROR: installer accepted tampered JS' >&2
+            exit 1
+          fi
