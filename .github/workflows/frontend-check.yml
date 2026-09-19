@@ -22,6 +22,7 @@ jobs:
           node --check frontend/ha-motogp-card.js
           node --check frontend/ha-motogp-next-card.js
           node --check frontend/ha-motogp-next-split.js
+          node --check frontend/ha-motogp-next-split-enhancements.js
       - name: Original frontend smoke tests
         env:
           TZ: Europe/Stockholm
@@ -42,3 +43,7 @@ jobs:
         env:
           TZ: Europe/Stockholm
         run: node tests/frontend-next-split.cjs
+      - name: Reversible split enhancement regression
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-next-split-enhancements.cjs
