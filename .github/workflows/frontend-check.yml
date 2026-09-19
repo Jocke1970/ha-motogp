@@ -52,7 +52,7 @@ jobs:
         env:
           TZ: Europe/Stockholm
         run: node tests/frontend-next-gap-trends.cjs
-      - name: Unified split installer: syntax, repeatability, and tamper guard
+      - name: 'Unified split installer: syntax, repeatability, and tamper guard'
         run: |
           set -euo pipefail
           bash -n scripts/install-next-split-unified.sh
