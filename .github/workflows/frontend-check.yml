@@ -24,6 +24,10 @@ jobs:
           node --check frontend/ha-motogp-next-split.js
           node --check frontend/ha-motogp-next-split-enhancements.js
           node --check frontend/ha-motogp-next-gap-trends.js
+      - name: Build ONE distributable Next resource (pinned source and syntax)
+        run: |
+          python3 scripts/build-next-one.py frontend /tmp/ha-motogp-next.js
+          node --check /tmp/ha-motogp-next.js
       - name: Original frontend smoke tests
         env:
           TZ: Europe/Stockholm
