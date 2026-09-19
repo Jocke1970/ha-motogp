@@ -52,3 +52,22 @@ jobs:
         env:
           TZ: Europe/Stockholm
         run: node tests/frontend-next-gap-trends.cjs
+      - name: Unified split installer: syntax, repeatability, and tamper guard
+        run: |
+          set -euo pipefail
+          bash -n scripts/install-next-split-unified.sh
+          staging="$(mktemp -d)"
+          trap 'rm -rf -- "$staging"' EXIT
+          cp frontend/ha-motogp-next-card.js frontend/ha-motogp-next-split.js \
+             frontend/ha-motogp-next-split-enhancements.js \
+             frontend/ha-motogp-next-gap-trends.js "$staging/"
+          MOTOGP_WWW_DIR="$staging" bash scripts/install-next-split-unified.sh
+          node --check "$staging/ha-motogp-next-split.js"
+          first_sha="$(git hash-object "$staging/ha-motogp-next-split.js")"
+          MOTOGP_WWW_DIR="$staging" bash scripts/install-next-split-unified.sh
+          test "$first_sha" = "$(git hash-object "$staging/ha-motogp-next-split.js")"
+          printf '\n/* unexpected modification */\n' >> "$staging/ha-motogp-next-split.js"
+          if MOTOGP_WWW_DIR="$staging" bash scripts/install-next-split-unified.sh; then
+            echo 'ERROR: the installer accepted a modified split file' >&2
+            exit 1
+          fi
