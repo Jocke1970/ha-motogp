@@ -1,4 +1,4 @@
-/* MotoGP Next SINGLE Lovelace resource | build next-one-20260919-01 | read only. */
+/* MotoGP Next SINGLE Lovelace resource | build next-one-20260920-02 | read only. */
 /* MotoGP Next: isolated frontend for motogp-test. No HA writes or service calls. */
 (() => {
   'use strict';
@@ -235,7 +235,7 @@
       const presumedDone=current.length>0&&now.getTime()>=lastStart+2*60*60*1000;
       this._autoDays=new Set(current.length?[this._today]:[]);
       if (hasTomorrow&&!active(st)&&(confirmedDone||presumedDone))this._autoDays.add(tomorrow);
-      const next=sessions.find(isLive)||sessions.find(s=>!past(s));
+      const next=sessions.find(isLive)||sessions.find(s=>s._wall.date>now&&!explicitFinish(s));
       let html=`<section class="panel"><div class="head"><strong>🗓️ Helgens schema</strong><span class="muted">${esc(this._filter)} · ${sessions.length} pass`+
         `${next?` · ${isLive(next)?'Pågår':'Nästa'}: ${esc(next._cat)} ${esc(next._name)} ${next._wall.time}`:''}</span></div>`;
       html+=`<div class="cats">${['Total',...available].map(c=>`<button type="button" class="cat" data-category="${esc(c)}" ${this._filter===c?'selected':''} aria-pressed="${this._filter===c}">${esc(c)}</button>`).join('')}</div>`;
@@ -243,7 +243,7 @@
       const groups=new Map();
       for(const s of sessions) {if(!groups.has(s._wall.day))groups.set(s._wall.day,[]);groups.get(s._wall.day).push(s);}
       for(const [day,items] of groups) {
-        const open=this._expanded(day),upcoming=items.find(s=>!past(s));
+        const open=this._expanded(day),upcoming=items.find(isLive)||items.find(s=>s._wall.date>now&&!explicitFinish(s));
         const summary=upcoming?`${isLive(upcoming)?'Pågår':'Nästa'} ${upcoming._cat} ${upcoming._name} · ${upcoming._wall.time}`:
           items.every(explicitFinish)?'Klart':'Inga kommande starter';
         const todayTag=day===this._today?'<span class="today-tag"> · IDAG</span>':'';
@@ -296,9 +296,9 @@
       this._track(now,race);
       const event=valid(race?.state)?race.state:'Inget evenemang tillgängligt';
       const meta=[a.circuit,a.country,a.date_start&&a.date_end?dateRange(a.date_start,a.date_end):''].filter(valid);
-      this.shadowRoot.getElementById('app').innerHTML=`<div class="root"><section class="panel header"><div class="eyebrow">🏁 MOTOGP · ${esc(VERSION)}</div><h2>${esc(event)}</h2><div class="sub">${meta.map(esc).join(' · ')||'Väntar på evenemangsdata'}</div></section>`+
+      this.shadowRoot.getElementById('app').innerHTML=`<div class="root"><section class="panel header"><div class="eyebrow">🏁 MOTOGP NEXT · 0.3.0-dev.2</div><h2>${esc(event)}</h2><div class="sub">${meta.map(esc).join(' · ')||'Väntar på evenemangsdata'}</div></section>`+
         this._schedule(race,now)+`<div class="root">${this._weather()}${this._timing()}</div>`+
-        `<div class="foot">${esc(TAG)} · ${esc(BUILD)} · testresurs</div></div>`;
+        `<div class="foot">ha-motogp-next.js · 0.3.0-dev.2 · samlad testversion</div></div>`;
     }
     getCardSize(){return 8;}
     getGridOptions(){return {columns:12,rows:'auto',min_columns:6};}
@@ -357,7 +357,7 @@
         day:`${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`,
         time:`${pad(date.getHours())}:${pad(date.getMinutes())}`} : null;
     }).filter(item => item && (!start || item.day >= start) && (!end || item.day <= end) &&
-      (filter === 'Total' || item.category === filter) && (item.date.getTime() > now.getTime() || (item.date.getTime()+2*60*60*1000 > now.getTime() && !source.some(other => {const later=parseStart(other?.date); return later && later>item.date && later<=now;}))) &&
+      (filter === 'Total' || item.category === filter) && item.date.getTime() > now.getTime() &&
       !['FINISHED','CANCELLED','CANCELED'].includes(String(item.pass.status || '').toUpperCase()))
       .sort((a,b) => a.date-b.date)[0] || null;
   }
@@ -479,6 +479,20 @@
         const now=new Date(), upcoming=nextPass(race,now);
         const live=this._live, status=states[this._ids.status]; let snap=this._snapshot;
         const spoiler=this._spoiler();
+        // A passed start time does not establish a live or finished status.
+        // Never inspect unapproved rider data to infer session state.
+        const schedule=race?.attributes||{};
+        const entries=Array.isArray(schedule.sessions_all)?schedule.sessions_all:
+          Array.isArray(schedule.sessions)?schedule.sessions:[];
+        const pending=entries.map(s=>({pass:s,date:parseStart(s?.date)}))
+          .filter(x=>x.date && x.date<=now && x.date.toDateString()===now.toDateString() &&
+            now-x.date<2*60*60*1000 &&
+            !['FINISHED','CANCELLED','CANCELED'].includes(String(x.pass.status||'').toUpperCase()) &&
+            !((status?.state==='Finished'||String(status?.attributes?.session_status_id||'').toUpperCase()==='F') &&
+              category(status?.attributes?.category)===category(x.pass.category||'MotoGP') &&
+              sessionName(status?.attributes?.session_shortname)===sessionName(x.pass.name||x.pass.type||'')))
+          .sort((a,b)=>b.date-a.date)[0]||null;
+        const started=pending && now-pending.date<15*60*1000?pending:null;
         const imminent=!live && upcoming && upcoming.date>now && upcoming.date.getTime()-now.getTime()<=15*60*1000;
         if (imminent && snap) {this._snapshot=null;this._activeKey='';snap=null;}
         const hasRiders=!spoiler && snap?.riders?.length && snap.day===this._today;
@@ -498,9 +512,15 @@
           const delay=positive(status?.attributes?.tv_delay_effective_seconds);
           clockHtml=`<span class="nt-clock">${major?`<span${!isRace&&remaining?' data-live-remaining':''}>${esc(major)}</span>`:''}`+
             `${delay?`<small>TV-delay ${delay} s</small>`:''}</span>`;
+        } else if (started && !spoiler) {
+          title=`Schemalagd: ${category(started.pass.category||'MotoGP')} · ${sessionName(started.pass.name||started.pass.type||'')}`;
+          statusText='STARTTID PASSERAD · INVÄNTAR MATCHANDE DATA';
+          clockHtml=`<span class="nt-clock"><span>${esc(pad(started.date.getHours())+':'+pad(started.date.getMinutes()))}</span>`+
+            `${upcoming?`<small>Nästa: ${esc(upcoming.category)} ${esc(upcoming.name)} ${esc(upcoming.time)}</small>`:''}</span>`;
         } else if (upcoming) {
           title=`Nästa: ${upcoming.category} · ${upcoming.name}`;
-          statusText=spoiler?'SPOILERLÄGE':hasRiders?'SENASTE PASS AVSLUTAT':'MELLAN PASSEN';
+          statusText=spoiler?'SPOILERLÄGE':hasRiders?'SENASTE PASS · EJ LIVE':pending?
+            `STATUS OKÄND: ${category(pending.pass.category||'MotoGP')} ${sessionName(pending.pass.name||pending.pass.type||'')}`:'MELLAN PASSEN';
           clockHtml=`<span class="nt-clock"><span>${esc(upcoming.time)}</span>`+
             `<small>${countdownHtml(upcoming)}</small></span>`;
         } else {
