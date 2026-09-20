@@ -10,15 +10,20 @@ EXPECTED = {
     'ha-motogp-next-split-enhancements.js': '346df5046cc9301e426650cb36cb32449883414c',
     'ha-motogp-next-gap-trends.js': 'c9eba3a6de76237945ac7e37a7db9356e319560e',
 }
+BUILD = 'next-one-20260920-02'
+DISPLAY_VERSION = '0.3.0-dev.2'
+
 
 def git_sha(data):
     return hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
+
 
 def swap(source, old, new, label):
     matches = source.count(old)
     if matches != 1:
         raise SystemExit(f'STOP: {label}: expected exactly one anchor, found {matches}')
     return source.replace(old, new, 1)
+
 
 def build(directory, destination):
     source = {}
@@ -40,15 +45,16 @@ def build(directory, destination):
     base = swap(base, "elapsed?'PASSERAT':'KOMMANDE'",
         "elapsed?'TID PASSERAD':s._wall.date<now?'INVÄNTAR STATUS':'KOMMANDE'",
         'schedule status is not session finish')
+    base = swap(base, '🏁 MOTOGP · ${esc(VERSION)}',
+                f'🏁 MOTOGP NEXT · {DISPLAY_VERSION}', 'unified version header')
+    base = swap(base, '${{esc(TAG)}} · ${{esc(BUILD)}} · testresurs',
+                f'ha-motogp-next.js · {DISPLAY_VERSION} · samlad testversion',
+                'unified footer')
 
     split = source['ha-motogp-next-split.js']
-    split = swap(split,
-        "item.date.getTime() > now.getTime() &&",
-        "(item.date.getTime() > now.getTime() || "
-        "(item.date.getTime()+2*60*60*1000 > now.getTime() && "
-        "!source.some(other => {const later=parseStart(other?.date); "
-        "return later && later>item.date && later<=now;}))) &&",
-        'retain latest started unconfirmed session, not previous Q1')
+    # nextPass MUST remain strictly future-oriented. The original source already
+    # uses item.date > now. A started-but-unverified session is tracked separately
+    # for the timing header and must never be falsely called the NEXT session.
     split = swap(split, "if (seconds < 0) return 'Starttid passerad';",
         "if (seconds < 0) return 'Starttid passerad · inväntar status';",
         'started but no confirmed status')
@@ -63,6 +69,36 @@ def build(directory, destination):
         "        if (imminent && snap) {this._snapshot=null;this._activeKey='';snap=null;}\n"
         "        const hasRiders=!spoiler && snap?.riders?.length && snap.day===this._today;",
         'clear old riders 15 min before a new session')
+    split = swap(split,
+        'const spoiler=this._spoiler();',
+        "const spoiler=this._spoiler();\n"
+        "        // A passed start time is neither a confirmed live nor finished status.\n"
+        "        // Keep it separate from nextPass() and do not inspect unapproved rider data.\n"
+        "        const schedule=race?.attributes||{};\n"
+        "        const entries=Array.isArray(schedule.sessions_all)?schedule.sessions_all:\n"
+        "          Array.isArray(schedule.sessions)?schedule.sessions:[];\n"
+        "        const pending=entries.map(s=>({pass:s,date:parseStart(s?.date)}))\n"
+        "          .filter(x=>x.date && x.date<=now && x.date.toDateString()===now.toDateString() &&\n"
+        "            now-x.date<2*60*60*1000 &&\n"
+        "            !['FINISHED','CANCELLED','CANCELED'].includes(String(x.pass.status||'').toUpperCase()) &&\n"
+        "            !((status?.state==='Finished'||String(status?.attributes?.session_status_id||'').toUpperCase()==='F') &&\n"
+        "              category(status?.attributes?.category)===category(x.pass.category||'MotoGP') &&\n"
+        "              sessionName(status?.attributes?.session_shortname)===sessionName(x.pass.name||x.pass.type||'')))\n"
+        "          .sort((a,b)=>b.date-a.date)[0]||null;\n"
+        "        const started=pending && now-pending.date<15*60*1000?pending:null;",
+        'separate a recently started unresolved pass from a genuinely upcoming pass')
+    split = swap(split,
+        "        } else if (upcoming) {\n          title=`Nästa: ${upcoming.category} · ${upcoming.name}`;\n          statusText=spoiler?'SPOILERLÄGE':hasRiders?'SENASTE PASS AVSLUTAT':'MELLAN PASSEN';",
+        "        } else if (started && !spoiler) {\n"
+        "          title=`Schemalagd: ${category(started.pass.category||'MotoGP')} · ${sessionName(started.pass.name||started.pass.type||'')}`;\n"
+        "          statusText='STARTTID PASSERAD · INVÄNTAR MATCHANDE DATA';\n"
+        "          clockHtml=`<span class=\"nt-clock\"><span>${esc(pad(started.date.getHours())+':'+pad(started.date.getMinutes()))}</span>`+\n"
+        "            `${upcoming?`<small>Nästa: ${esc(upcoming.category)} ${esc(upcoming.name)} ${esc(upcoming.time)}</small>`:''}</span>`;\n"
+        "        } else if (upcoming) {\n"
+        "          title=`Nästa: ${upcoming.category} · ${upcoming.name}`;\n"
+        "          statusText=spoiler?'SPOILERLÄGE':hasRiders?'SENASTE PASS · EJ LIVE':pending?\n"
+        "            `STATUS OKÄND: ${category(pending.pass.category||'MotoGP')} ${sessionName(pending.pass.name||pending.pass.type||'')}`:'MELLAN PASSEN';",
+        'do not call past warmup next or claim old results officially finished')
     split = swap(split,
         '.nt-row>span:not(.nt-person){text-align:right}',
         '.nt-heading>span:nth-child(2){text-align:center}.nt-row>span:not(.nt-person){text-align:right}',
@@ -127,7 +163,7 @@ def build(directory, destination):
         "${major?`<span>${esc(major)}</span>`:''}",
         "${major?`<span${!isRace&&remaining?' data-live-remaining':''}>${esc(major)}</span>`:''}",
         'target live header seconds only, never race lap counter')
-    bundle = ('/* MotoGP Next SINGLE Lovelace resource | build next-one-20260919-01 | read only. */\n' +
+    bundle = (f'/* MotoGP Next SINGLE Lovelace resource | build {BUILD} | read only. */\n' +
               '\n;\n'.join([base, split, source['ha-motogp-next-split-enhancements.js'],
                             source['ha-motogp-next-gap-trends.js']]) + '\n')
     destination.write_text(bundle, encoding='utf-8')
