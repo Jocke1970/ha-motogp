@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -56,15 +58,18 @@ jobs:
         env:
           TZ: Europe/Stockholm
         run: node tests/frontend-next-gap-trends.cjs
-      - name: 'Unified split installer: syntax, repeatability, and tamper guard'
+      - name: 'Historical unified split installer: syntax, repeatability and tamper guard'
         run: |
           set -euo pipefail
           bash -n scripts/install-next-split-unified.sh
           staging="$(mktemp -d)"
           trap 'rm -rf -- "$staging"' EXIT
           cp frontend/ha-motogp-next-card.js frontend/ha-motogp-next-split.js \
-             frontend/ha-motogp-next-split-enhancements.js \
-             frontend/ha-motogp-next-gap-trends.js "$staging/"
+             frontend/ha-motogp-next-split-enhancements.js "$staging/"
+          # The old split installer explicitly pins the old gap add-on. Test it
+          # with that historical source, NOT the updated one-file Next module.
+          git show af1ac68f2f8dab9a7d85088773d0877e225c4996:frontend/ha-motogp-next-gap-trends.js \
+            > "$staging/ha-motogp-next-gap-trends.js"
           MOTOGP_WWW_DIR="$staging" bash scripts/install-next-split-unified.sh
           node --check "$staging/ha-motogp-next-split.js"
           first_sha="$(git hash-object "$staging/ha-motogp-next-split.js")"
