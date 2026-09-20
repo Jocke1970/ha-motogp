@@ -5,13 +5,17 @@ on:
     branches: [dev, beta]
     paths:
       - 'backend/session_lap_archive.py'
+      - 'backend/deployed/v1.0.9/custom_components/motogp_sensor/coordinator.py'
       - 'tests/test_session_lap_archive.py'
+      - 'scripts/build-session-archive-candidate.py'
       - '.github/workflows/backend-session-archive-check.yml'
   pull_request:
     branches: [beta, main]
     paths:
       - 'backend/session_lap_archive.py'
+      - 'backend/deployed/v1.0.9/custom_components/motogp_sensor/coordinator.py'
       - 'tests/test_session_lap_archive.py'
+      - 'scripts/build-session-archive-candidate.py'
       - '.github/workflows/backend-session-archive-check.yml'
 
 permissions:
@@ -25,7 +29,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Syntax
-        run: python -m py_compile backend/session_lap_archive.py tests/test_session_lap_archive.py
-      - name: Session archive regression
-        run: python -m unittest discover -s tests -p 'test_session_lap_archive.py' -v
+      - name: Python syntax and archive regression
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/session_lap_archive.py tests/test_session_lap_archive.py scripts/build-session-archive-candidate.py
+          python -m unittest discover -s tests -p 'test_session_lap_archive.py' -v
+      - name: Build isolated candidate using exact audited coordinator and archive blobs
+        run: |
+          set -euo pipefail
+          python scripts/build-session-archive-candidate.py . /tmp/motogp-session-candidate
+          python -m compileall -q /tmp/motogp-session-candidate
+          test "$(git hash-object /tmp/motogp-session-candidate/session_lap_archive.py)" = f20ceb90348ff124bdbc049faff4e0d90cf6b8b0
+          test "$(git hash-object backend/deployed/v1.0.9/custom_components/motogp_sensor/coordinator.py)" = 87a2a7217dc1e6d748cfcd8b4cd88eda43c5c163
+          grep -q 'self.hass.async_add_executor_job(' /tmp/motogp-session-candidate/coordinator.py
+          grep -q 'live.get("tv_delay_ready") is True' /tmp/motogp-session-candidate/coordinator.py
+          test "$(git status --porcelain | wc -l)" -eq 0
