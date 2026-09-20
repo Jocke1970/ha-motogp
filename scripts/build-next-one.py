@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed build of ONE MotoGP Next JS resource from pinned dev.4/split.2 sources."""
+"""Fail-closed build of a single MotoGP Next Lovelace resource from pinned sources."""
 import hashlib
 import pathlib
 import sys
@@ -47,14 +47,13 @@ def build(directory, destination):
         'schedule status is not session finish')
     base = swap(base, '🏁 MOTOGP · ${esc(VERSION)}',
                 f'🏁 MOTOGP NEXT · {DISPLAY_VERSION}', 'unified version header')
-    base = swap(base, '${{esc(TAG)}} · ${{esc(BUILD)}} · testresurs',
+    base = swap(base, '${esc(TAG)} · ${esc(BUILD)} · testresurs',
                 f'ha-motogp-next.js · {DISPLAY_VERSION} · samlad testversion',
                 'unified footer')
 
     split = source['ha-motogp-next-split.js']
-    # nextPass MUST remain strictly future-oriented. The original source already
-    # uses item.date > now. A started-but-unverified session is tracked separately
-    # for the timing header and must never be falsely called the NEXT session.
+    # nextPass() in the pinned source is already STRICTLY future-oriented.
+    # Do not put a started session back into the next-start calculation.
     split = swap(split, "if (seconds < 0) return 'Starttid passerad';",
         "if (seconds < 0) return 'Starttid passerad · inväntar status';",
         'started but no confirmed status')
@@ -72,8 +71,8 @@ def build(directory, destination):
     split = swap(split,
         'const spoiler=this._spoiler();',
         "const spoiler=this._spoiler();\n"
-        "        // A passed start time is neither a confirmed live nor finished status.\n"
-        "        // Keep it separate from nextPass() and do not inspect unapproved rider data.\n"
+        "        // A passed start time does not establish a live or finished status.\n"
+        "        // Never inspect unapproved rider data to infer session state.\n"
         "        const schedule=race?.attributes||{};\n"
         "        const entries=Array.isArray(schedule.sessions_all)?schedule.sessions_all:\n"
         "          Array.isArray(schedule.sessions)?schedule.sessions:[];\n"
@@ -86,7 +85,7 @@ def build(directory, destination):
         "              sessionName(status?.attributes?.session_shortname)===sessionName(x.pass.name||x.pass.type||'')))\n"
         "          .sort((a,b)=>b.date-a.date)[0]||null;\n"
         "        const started=pending && now-pending.date<15*60*1000?pending:null;",
-        'separate a recently started unresolved pass from a genuinely upcoming pass')
+        'separate unverified started pass from future next pass')
     split = swap(split,
         "        } else if (upcoming) {\n          title=`Nästa: ${upcoming.category} · ${upcoming.name}`;\n          statusText=spoiler?'SPOILERLÄGE':hasRiders?'SENASTE PASS AVSLUTAT':'MELLAN PASSEN';",
         "        } else if (started && !spoiler) {\n"
@@ -98,11 +97,11 @@ def build(directory, destination):
         "          title=`Nästa: ${upcoming.category} · ${upcoming.name}`;\n"
         "          statusText=spoiler?'SPOILERLÄGE':hasRiders?'SENASTE PASS · EJ LIVE':pending?\n"
         "            `STATUS OKÄND: ${category(pending.pass.category||'MotoGP')} ${sessionName(pending.pass.name||pending.pass.type||'')}`:'MELLAN PASSEN';",
-        'do not call past warmup next or claim old results officially finished')
+        'show genuine next start and accurately label unknown previous status')
     split = swap(split,
         '.nt-row>span:not(.nt-person){text-align:right}',
         '.nt-heading>span:nth-child(2){text-align:center}.nt-row>span:not(.nt-person){text-align:right}',
-        'center driver/team heading only')
+        'center driver/team heading')
     split = swap(split,
         '    .nt-empty{padding:15px;color:var(--secondary-text-color);font-size:12px}',
         '    .nt-empty{padding:15px;color:var(--secondary-text-color);font-size:12px}\n'
@@ -120,7 +119,7 @@ def build(directory, destination):
         "        const qReady=qCut>0 && qPositions.length>=qCut && "
         "Array.from({length:qCut},(_,i)=>i+1).every(p=>qPositions.filter(x=>x===p).length===1);\n"
         "        for (const rider of snap.riders) {",
-        'derive verified provisional Q1 cutoffs')
+        'verified provisional Q1 cutoff')
     split = swap(split,
         "${pit?' <span class=\"nt-pit\">PIT</span>':''}</b><small>",
         "${pit?' <span class=\"nt-pit\">PIT</span>':''}"
@@ -132,7 +131,7 @@ def build(directory, destination):
         '<span>${esc(prev)}</span><span>${esc(first)}</span><span>${esc(riderStatus)}</span></div>`;\n'
         "          if (qReady && p===qCut) html+='<div class=\"nt-q2-cut\" "
         "role=\"note\">Q2-GRÄNS · preliminärt</div>';",
-        'visible provisional Q1 boundary')
+        'Q1 cutoff line')
     split = swap(split,
         '    class CountdownCard extends Base {',
         "    function refreshLiveClock(card) {\n"
@@ -158,11 +157,11 @@ def build(directory, destination):
     split = swap(split,
         'setInterval(()=>refreshCountdowns(this.shadowRoot),1000)',
         'setInterval(()=>{refreshCountdowns(this.shadowRoot);refreshLiveClock(this);},1000)',
-        'one-second local clock without API polling')
+        'one-second local clock')
     split = swap(split,
         "${major?`<span>${esc(major)}</span>`:''}",
         "${major?`<span${!isRace&&remaining?' data-live-remaining':''}>${esc(major)}</span>`:''}",
-        'target live header seconds only, never race lap counter')
+        'live countdown span only, never race lap counter')
     bundle = (f'/* MotoGP Next SINGLE Lovelace resource | build {BUILD} | read only. */\n' +
               '\n;\n'.join([base, split, source['ha-motogp-next-split-enhancements.js'],
                             source['ha-motogp-next-gap-trends.js']]) + '\n')
