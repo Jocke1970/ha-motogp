@@ -16,17 +16,21 @@ jobs:
       TZ: Europe/Stockholm
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Build pinned single file and check JavaScript
         run: |
+          set -euo pipefail
           python3 scripts/build-next-one.py frontend /tmp/ha-motogp-next.js
           node --check /tmp/ha-motogp-next.js
+          test "$(git hash-object dist/ha-motogp-next.js)" = c40b9cf65bd150043aecf8c0efeaa10a291d269d
           test "$(git hash-object dist/ha-motogp-next.js)" = "$(git hash-object /tmp/ha-motogp-next.js)"
       - name: Session transitions, Q1, local timer, spoiler and 15-minute cleanup
         run: node tests/frontend-next-one.cjs /tmp/ha-motogp-next.js
-      - name: Installer syntax, offline repeatability, tamper and checksum safeguards
+      - name: Installer syntax, verified old-version upgrade, repeatability and tamper rejection
         run: |
           set -euo pipefail
           bash -n scripts/install-next-one.sh
@@ -35,23 +39,29 @@ jobs:
           mkdir -p "$staging/www"
           export MOTOGP_WWW_DIR="$staging/www"
           export MOTOGP_BUNDLE_FILE="$PWD/dist/ha-motogp-next.js"
+          target="$staging/www/ha-motogp-next.js"
+          git show 430dbac5133dff0e722bc82aec9bdf96bf6e22e7:dist/ha-motogp-next.js > "$target"
+          test "$(git hash-object "$target")" = bd8d9eb66bb867dd6552587d9850e7b41e05b1b6
           bash scripts/install-next-one.sh
-          node --check "$staging/www/ha-motogp-next.js"
-          sha="$(git hash-object "$staging/www/ha-motogp-next.js")"
-          test "$sha" = bd8d9eb66bb867dd6552587d9850e7b41e05b1b6
+          node --check "$target"
+          sha="$(git hash-object "$target")"
+          test "$sha" = c40b9cf65bd150043aecf8c0efeaa10a291d269d
           bash scripts/install-next-one.sh
-          test "$sha" = "$(git hash-object "$staging/www/ha-motogp-next.js")"
-          printf '\n/* tampered */\n' >> "$staging/www/ha-motogp-next.js"
+          test "$sha" = "$(git hash-object "$target")"
+          printf '\n/* modified */\n' >> "$target"
           if bash scripts/install-next-one.sh; then
-            echo 'ERROR: installer accepted modified destination' >&2
+            echo 'ERROR: installer overwrote an unknown destination' >&2
             exit 1
           fi
-          test "$(git hash-object "$staging/www/ha-motogp-next.js")" != "$sha"
-          rm -- "$staging/www/ha-motogp-next.js"
-          printf '\n/* tampered */\n' > "$staging/tampered.js"
+          test "$(git hash-object "$target")" != "$sha"
+          rm -- "$target"
+          printf 'tampered\n' > "$staging/tampered.js"
           export MOTOGP_BUNDLE_FILE="$staging/tampered.js"
           if bash scripts/install-next-one.sh; then
             echo 'ERROR: installer accepted modified source' >&2
             exit 1
           fi
-          test ! -e "$staging/www/ha-motogp-next.js"
+          test ! -e "$target"
+          export MOTOGP_BUNDLE_FILE="$PWD/dist/ha-motogp-next.js"
+          bash scripts/install-next-one.sh
+          test "$(git hash-object "$target")" = "$sha"
