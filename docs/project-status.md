@@ -1,33 +1,45 @@
-# MotoGP project status — 2026-09-18
+# MotoGP project status — doc sync 2026-09-21
 
-## Source and branch truth
+**Current operational reference.** This supersedes the older instructions in this file to install upstream 1.0.10, run a shell patch or implement TV delay from scratch. Software is not changed by this documentation update. See the [HACS installation and rollback guide](hacs-beta-installation.md) and [v1.0.9.1b1 release](https://github.com/Jocke1970/ha-motogp/releases/tag/v1.0.9.1b1).
 
-- Running HA Python: reviewed customized `motogp_sensor` **v1.0.9**. Its exact 14 source files plus inventory were committed to `dev` in [`0c66663`](https://github.com/Jocke1970/ha-motogp/commit/0c66663aff1ee7db30de136b064941964791219f); [integrity CI passed](https://github.com/Jocke1970/ha-motogp/actions/runs/35378743131). Nine files match upstream v1.0.9; five are modified (`api.py`, `const.py`, `coordinator.py`, `helpers.py`, `sensor.py`). This is an exact dated snapshot, **not continuous sync or runtime validation**. [Source audit](deployed-python-audit-2026-09-18.md).
-- Development/documentation changes on `dev` only; `beta` and `main` not promoted. Source capture and shell-script quarantine did not overwrite the running integration or working legacy HA dashboard.
-- Active `/config/packages/motogp_dashboard_mode.yaml` is independently exported, hash-verified and checked in as an exact **reference** on `dev` at [`config/packages/motogp_dashboard_mode.yaml`](../config/packages/motogp_dashboard_mode.yaml). Historical installer overwrites the live YAML and must not be rerun.
+## Source of truth and branch ownership
 
-## UI
+| Location | Purpose / known state |
+| --- | --- |
+| Running Home Assistant | User reported HACS `installed_version: v1.0.9.1b1`, existing MotoGP entities and static data visible on 2026-09-20. This **does not** verify all installed Python file hashes or actual archive writes. |
+| GitHub tagged `v1.0.9.1b1` | Immutable reference for this trial's **versioned package**, created from beta packaging commit `a40b9ebe`; full integration under `custom_components/motogp_sensor/`, manifest `1.0.9.1b1`. This is the intended HACS install choice. |
+| `main` | HACS custom-repository discovery and the packaged integration. The initial package promotion was commit `ba28f5e`; future documentation-only commits do **not** create a newer released software version. |
+| `beta` | Reviewed beta distribution and release-related documentation. |
+| `dev` | Ongoing development, pinned pre-beta baseline, frontend work, offline archive tests and roadmaps. Do not use an untagged branch as a substitute for the installed HACS beta. |
 
-- Separate Card-test JS: [`frontend/ha-motogp-card.js`](../frontend/ha-motogp-card.js), `v0.1.0-dev.3` / `0b493073ef59`, previously observed in HA; old dashboard untouched.
-- **File-content discrepancy RESOLVED:** the JS in the HA provenance export (26,122 bytes) differs from GitHub dev (26,123 bytes) **only by GitHub's final LF**. Appending one LF to the exported bytes yields exactly the GitHub blob SHA-1 `fef8e3e4f09d30f01385d6e8417e96ae923cb65d`. No functional source drift, no replacement or build bump needed. [Exact proof](frontend-drift-resolution-2026-09-18.md). **Separate unverified point:** actual browser-loaded resource/cache has not been independently inspected; check before subsequent deployment. Existing polish items include weather placeholders and prestart/session-day presentation.
+The integration domain remains `motogp_sensor`; do not install a second copy from upstream. Keep the existing HA config entry under Devices & services. Do not run the historical `1.0.10` patch or the earlier `install-session-archive-beta.py` overlay on the HACS edition. Do not automatically merge `dev` into `main`/`beta`; the branches contain different workstreams.
 
-## Patch provenance and cleanup
+## Verified in GitHub and offline tests
 
-- Reviewed the 13-file provenance export: eleven historical patch/install `.sh` scripts, active YAML package and live JS. All ten Python patch feature families appear in the captured 1.0.9 end state; source-presence is not exhaustive runtime verification. [Per-script audit](provenance-cleanup-2026-09-18.md).
-- First read-only scan checked 6,618 configuration text files and reported zero references but eight large files skipped; it correctly stopped without movement.
-- **Executed on actual HA:** hash-gated [`quarantine_motogp_patches.py`](../scripts/quarantine_motogp_patches.py) with `--apply` verified live snapshot, provenance and eleven script hashes; scanned **6,626** text files including the eight large files in chunks; found **zero filename/wildcard references**. User terminal reported **all eleven scripts moved** to `/config/.motogp_cleanup_quarantine/patch-scripts`, leaving Python, YAML, JS, backups and non-MotoGP scripts untouched. **No permanent deletion.** [Executed runbook](patch-quarantine-runbook-2026-09-18.md).
-- User knows of no external cron/add-on caller, but external invocations outside scanned `/config` cannot be conclusively ruled out. Validate normal HA/dashboard and scheduled operation and separately approve any permanent purge after checking quarantined files. The previous seven misplaced/duplicate YAML files remain quarantined under a **different cleanup gate**; user earlier observed no repair warnings, but purge/reference check is still open.
+- The complete HACS beta was packaged from the audited, locally customized 1.0.9 backend with one coordinator archive hook plus `session_lap_archive.py`; manifest version is `1.0.9.1b1`. Packaging, source-pinning, syntax, archive and installer regression jobs completed successfully: [HACS CI run 35528926529](https://github.com/Jocke1970/ha-motogp/actions/runs/35528926529). This is build/test evidence, **not** evidence of recording a live race on the user's host.
+- `coordinator.py` packaged Git blob: `bd953cbf20f4f435c277e7a4265c38f6cb4aa37a`; archive module Git blob: `f20ceb90348ff124bdbc049faff4e0d90cf6b8b0`. These are expected repository files, not yet independently compared with the installed host files.
+- Archive design: accept only coordinator-exposed `tv_delay_ready=True` snapshots; persist session JSON under `/config/motogp_data/<year>/<event>/` outside HACS-managed source; use season/event/category/session identity, atomic writes, and reload matching files after restart. Missing laps cannot be reconstructed if HA never observed them. There is **no** history read API for Next yet. [Archive implementation notes](session-archive-beta1-2026-09-20.md) are historically about the *superseded overlay candidate*; the current distribution is the [HACS release notes](hacs-beta-release-notes.md).
 
-## Historical results and risks
+## Reported from the user's HA — 2026-09-20 evening
 
-- [`backend/result_archive.py`](../backend/result_archive.py) has fake-API unit tests but is **not connected to HA, persistent Store, service or Card-test UI**. Verify actual older Moto2 FP1 classification using exact event/category/session IDs and publication behavior before claiming history browsing works.
-- Source-based risks (not confirmed incidents): postrace next-event may change before schedule refresh; static last-race-results may not be covered by live-only spoiler guard; lap history is in-memory.
+- HACS update entity `update.motogp_sensor_ha_motogp_beta_update` reported `installed_version: v1.0.9.1b1`, `auto_update: false`, `in_progress: false`. Before pre-release was enabled its `latest_version` and `skipped_version` both showed `ba28f5e` (`main` commit), **not** a second beta. User found the disabled HACS *Pre-release* switch for this repository and enabled it; HACS subsequently displayed the tagged `v1.0.9.1b1` in its download dialog and repository version badge. A post-toggle `latest_version` attribute was **not** provided, so do not claim that attribute was definitively corrected. No second download was required or confirmed.
+- The compact, read-only HA Jinja report found 36 MotoGP-matching entities, including calendar, race/weekend helpers, results, standings and both old and new HACS update entities. Presence of both update entities alone does not prove that two backend integrations run. Static results and standings were populated. No direct file/hash or HA-log export has been reviewed after the HACS switch.
+- All live-only sensors were `unknown` and live-timing-online was `off` after the **last race of the weekend**. This is expected context, not by itself an integration error. The user's TV delay was deliberately set to **0 seconds**; do not silently change it. Dashboard had post-race visibility until local midnight; its Austria/0-days display on that evening is an observation requiring next-event verification, not a diagnosed API defect.
+- The race captured earlier on 2026-09-20 generated a separate `motogp-lap-observations-*.jsonl` observation file **before** this beta was in use. That file is **not** a session archive; no automatic importer/replay exists. Do not rename or ingest it as archive JSON without a separately tested importer.
 
-## Next gates
+## Components and exclusions
 
-1. Validate HA and scheduled workflows after script quarantine. Keep the eleven scripts in quarantine pending a distinct, explicitly approved permanent deletion step.
-2. Verify browser-loaded Lovelace resource/cache before the next dev deployment; any future functional frontend changes must have fresh build metadata, tests and rollback. No EOF-newline-only deployment needed.
-3. Audit references to the seven previously quarantined YAML files; capture dashboard resource and helper ownership.
-4. Integrate and test spoiler-safe historical results on exact verified Python, document install/rollback, and only then consider reviewed `dev → beta → main` promotion.
+- **Beta backend:** installed version reported by HACS; actual live archive creation, session transitions, persistent recovery, spoiler behavior and real full-file parity still pending a qualifying session/host review.
+- **Next UI:** independent `/config/www/ha-motogp-next.js` / `/local/ha-motogp-next.js`; last reported working version `0.3.0-dev.4`. It was **not** bundled with or changed by the HACS backend release. Original legacy dashboard, `ha-motogp-card.js`, existing YAML and HACS card resources are to remain untouched.
+- **Future UI and backend:** no replay importer, rider lap-history expander, guarded history API or verified Moto2/Moto3 class-wise championship backend in `v1.0.9.1b1`. Historical `backend/result_archive.py` is a separate uninstalled prototype on `dev`.
+- **Earlier cleanup:** 11 old shell patches remain quarantined, not permanently deleted. Seven historical misplaced/duplicate YAML files have a separate cleanup gate; preserve the working dashboard. [September 18 deployment ledger](https://github.com/Jocke1970/ha-motogp/blob/dev/docs/deployment-sync-2026-09-18.md) and [Issue #1](https://github.com/Jocke1970/ha-motogp/issues/1) are historical audit/unfinished-cleanup references, not today's deployment instruction.
 
-[Full deployment ledger](deployment-sync-2026-09-18.md) · [Issue #1](https://github.com/Jocke1970/ha-motogp/issues/1).
+## Next practical milestones — in order
+
+1. **Leave installed HACS beta alone** until next on-air session; avoid commit-hash update, original upstream HACS update, manual overlay or unnecessary reinstall. `auto_update` remains off by user setting. If reviewing HACS version metadata, distinguish release tag from a branch commit; record `installed_version`, `latest_version`, `skipped_version` after prerelease toggle without changing code.
+2. **First real backend archive verification:** after a qualifying session, confirm that a new session JSON actually appears in `/config/motogp_data/`, has `schema_version: 1`, correct event/category/session IDs, valid completed laps and timestamps, and no invented data. Use read-only inspection; redact secrets and private paths if exporting logs. The user has no further live sessions for the already completed weekend.
+3. **Subsequent sessions:** test separate per-class/per-session files, duplicates, missing-lap coverage, corrected times, finish, and recovery from an HA restart when practical. Verify delay behavior against the user's intended setting (currently 0 s) before any optional nonzero-delay test. Inspect HA log for archive warnings. Do not promise full lap coverage during outages.
+4. **HACS and source integrity:** when needed, read-only compare manifest, archive module and coordinator against the released Git blobs. Confirm no accidental source updates by the old upstream repository; do not remove the existing HA configuration entry.
+5. **Next features, separately scoped on `dev`:** spoiler-safe archive read/API + per-rider lap expanders; JSONL replay importer only if explicitly designed and tested; Next layout/grid/standings work behind verified data contracts. See the [archive roadmap on dev](https://github.com/Jocke1970/ha-motogp/blob/dev/docs/session-logging-roadmap.md) and [Next UI roadmap on dev](https://github.com/Jocke1970/ha-motogp/blob/dev/docs/ui-next-layout-roadmap-2026-09-20.md). Neither roadmap is a deployed feature list.
+
+**Acceptance boundary:** GitHub release + HACS installed-version report are verified; real on-host automatic archiving and all-lap coverage are **not yet verified**. Preserve source and data; no software deployment follows from a doc sync.
