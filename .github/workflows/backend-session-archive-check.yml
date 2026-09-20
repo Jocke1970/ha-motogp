@@ -8,6 +8,7 @@ on:
       - 'backend/deployed/v1.0.9/custom_components/motogp_sensor/coordinator.py'
       - 'tests/test_session_lap_archive.py'
       - 'scripts/build-session-archive-candidate.py'
+      - 'scripts/motogp-backend-preflight.py'
       - '.github/workflows/backend-session-archive-check.yml'
   pull_request:
     branches: [beta, main]
@@ -16,6 +17,7 @@ on:
       - 'backend/deployed/v1.0.9/custom_components/motogp_sensor/coordinator.py'
       - 'tests/test_session_lap_archive.py'
       - 'scripts/build-session-archive-candidate.py'
+      - 'scripts/motogp-backend-preflight.py'
       - '.github/workflows/backend-session-archive-check.yml'
 
 permissions:
@@ -29,11 +31,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Python syntax and archive regression
+      - name: Python syntax, archive regression and read-only preflight smoke test
         run: |
           set -euo pipefail
-          python -m py_compile backend/session_lap_archive.py tests/test_session_lap_archive.py scripts/build-session-archive-candidate.py
+          python -m py_compile backend/session_lap_archive.py tests/test_session_lap_archive.py scripts/build-session-archive-candidate.py scripts/motogp-backend-preflight.py
           python -m unittest discover -s tests -p 'test_session_lap_archive.py' -v
+          mkdir -p /tmp/motogp-fake-ha/custom_components/motogp_sensor /tmp/motogp-fake-ha/motogp_data/2026/example
+          printf 'different backend\n' > /tmp/motogp-fake-ha/custom_components/motogp_sensor/coordinator.py
+          printf '{"kind":"lap_observed","lap":1}\n' > /tmp/motogp-fake-ha/motogp_data/2026/example/capture.jsonl
+          python scripts/motogp-backend-preflight.py --config /tmp/motogp-fake-ha > /tmp/motogp-preflight-result.txt
+          grep -q 'INSTALLED_CODE_MUST_BE_REBASED' /tmp/motogp-preflight-result.txt
+          grep -q 'OBSERVATION_FILES: 1' /tmp/motogp-preflight-result.txt
+          grep -q 'No files modified' /tmp/motogp-preflight-result.txt
       - name: Build isolated candidate using exact audited coordinator and archive blobs
         run: |
           set -euo pipefail
@@ -43,5 +52,11 @@ jobs:
           test "$(git hash-object backend/deployed/v1.0.9/custom_components/motogp_sensor/coordinator.py)" = 87a2a7217dc1e6d748cfcd8b4cd88eda43c5c163
           grep -q 'self.hass.async_add_executor_job(' /tmp/motogp-session-candidate/coordinator.py
           grep -q 'live.get("tv_delay_ready") is True' /tmp/motogp-session-candidate/coordinator.py
-          # py_compile/unittest create untracked __pycache__; only tracked source mutation matters.
           test -z "$(git status --porcelain --untracked-files=no)"
+      - name: Publish candidate for code review ONLY (never auto-deploy)
+        uses: actions/upload-artifact@v4
+        with:
+          name: uninstalled-session-archive-candidate
+          path: /tmp/motogp-session-candidate/
+          if-no-files-found: error
+          retention-days: 7
