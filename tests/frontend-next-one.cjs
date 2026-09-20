@@ -64,13 +64,13 @@ const live=(category,name,riders)=>({
     session_fastest_lap_number:3,lap_history_partial:false,riders:[fast,personal,rider(3),rider(4),rider(5)]});
   pos.last_updated=new Date(now).toISOString();
   push({'sensor.motogp_rider_positions':pos});
-  assert.match(timing.view.innerHTML,/Sessionens snabbaste varv:[\s\S]*RIDER1[\s\S]*1'42\.123/);
+  assert.match(timing.view.innerHTML,/Sessionens snabbaste varv:[\s\S]*RIDER1[\s\S]*1&#39;42\.123/);
   assert.match(timing.view.innerHTML,/nt-fast-lap/,'session record also highlights latest lap');
   assert.match(timing.view.innerHTML,/nt-personal-best/,'independent PB for another rider');
   assert.match(timing.view.innerHTML,/data-motogp-feed-age="\d+"/,'freshness chip uses HA sensor timestamp');
   const slow={...fast,last_lap:4,last_lap_time:"1'43.000"};
   push({'sensor.motogp_rider_positions':{...pos,attributes:{...pos.attributes,riders:[slow,personal,rider(3),rider(4),rider(5)]}}});
-  assert.match(timing.view.innerHTML,/Sessionens snabbaste varv:[\s\S]*1'42\.123/,
+  assert.match(timing.view.innerHTML,/Sessionens snabbaste varv:[\s\S]*1&#39;42\.123/,
     'overall record survives a slower latest lap');
   assert.doesNotMatch(timing.view.innerHTML,/nt-fast-lap" title=/,
     'old session record cannot be labeled as a new fastest latest lap');
