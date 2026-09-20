@@ -45,8 +45,7 @@ jobs:
           node tests/frontend-next-ui-preview.cjs frontend/ha-motogp-next-ui-preview.js
           python3 scripts/build-next-ui-preview.py frontend dist/ha-motogp-next.js
           node --check dist/ha-motogp-next.js
-          echo "PREVIEW_BLOB=$(git hash-object dist/ha-motogp-next.js)"
-          test "$(git hash-object dist/ha-motogp-next.js)" = AWAITING_VERIFIED_PREVIEW_HASH
+          test "$(git hash-object dist/ha-motogp-next.js)" = 1f99efb65c9ab8087b51079b25ce283324ebfe8d
       - name: Publish only when the compiled JS differs
         run: |
           set -euo pipefail
