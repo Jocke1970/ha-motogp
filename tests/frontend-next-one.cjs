@@ -45,7 +45,7 @@ const live=(category,name,riders)=>({
     'switch.motogp_no_spoiler':e('off')};
   const push=x=>{states={...states,...x};overview.hass={states};timing.hass={states};};
   push({});
-  assert.match(overview.view.innerHTML,/0\.3\.0-dev\.2/);
+  assert.match(overview.view.innerHTML,/0\.3\.0-dev\.3/);
   assert.match(overview.view.innerHTML,/samlad testversion/);
   assert.doesNotMatch(overview.view.innerHTML,/testresurs/);
   assert.equal((timing.view.innerHTML.match(/Q2 ↑/g)||[]).length,4,'Moto2 Q1 4 riders marked');
@@ -57,6 +57,23 @@ const live=(category,name,riders)=>({
   assert.equal(timing.liveNode.textContent,'8:18 kvar');
   push({'sensor.motogp_session_time_remaining':e('300')});tick.fn();
   assert.equal(timing.liveNode.textContent,'5:00 kvar','new sensor value resyncs');
+  const fast={...rider(1),last_lap:3,best_lap_number:3,best_lap_time:"1'42.123",is_session_fastest:true};
+  const personal={...rider(2),last_lap:3,best_lap_number:3,best_lap_time:"1'42.456",last_lap_time:"1'42.456",is_session_fastest:false};
+  const pos=e('riders',{...meta('Moto2','Q1'),tv_delay_seconds:30,tv_delay_ready:true,
+    session_fastest_lap:"1'42.123",session_fastest_rider:'RIDER1',session_fastest_rider_number:31,
+    session_fastest_lap_number:3,lap_history_partial:false,riders:[fast,personal,rider(3),rider(4),rider(5)]});
+  pos.last_updated=new Date(now).toISOString();
+  push({'sensor.motogp_rider_positions':pos});
+  assert.match(timing.view.innerHTML,/Sessionens snabbaste varv:[\s\S]*RIDER1[\s\S]*1'42\.123/);
+  assert.match(timing.view.innerHTML,/nt-fast-lap/,'session record also highlights latest lap');
+  assert.match(timing.view.innerHTML,/nt-personal-best/,'independent PB for another rider');
+  assert.match(timing.view.innerHTML,/data-motogp-feed-age="\d+"/,'freshness chip uses HA sensor timestamp');
+  const slow={...fast,last_lap:4,last_lap_time:"1'43.000"};
+  push({'sensor.motogp_rider_positions':{...pos,attributes:{...pos.attributes,riders:[slow,personal,rider(3),rider(4),rider(5)]}}});
+  assert.match(timing.view.innerHTML,/Sessionens snabbaste varv:[\s\S]*1'42\.123/,
+    'overall record survives a slower latest lap');
+  assert.doesNotMatch(timing.view.innerHTML,/nt-fast-lap" title=/,
+    'old session record cannot be labeled as a new fastest latest lap');
   now=Date.parse('2026-09-19T13:47:00+02:00');
   push({'sensor.motogp_session_status':e('Finished',{...meta('Moto2','Q1'),session_status_id:'F'}),
     'sensor.motogp_next_race':race(sessions.map(s=>s.id==='m2q1'?{...s,status:'FINISHED'}:s))});
@@ -84,9 +101,10 @@ const live=(category,name,riders)=>({
     {id:'gpq2',category:'MotoGP',name:'Q2',date:'2026-09-19T11:15:00+00:00',status:'NOT-STARTED'}];
   push({'sensor.motogp_next_race':race(q1),...live('MotoGP','Q1',[rider(1),rider(2),rider(3)])});
   assert.equal((timing.view.innerHTML.match(/Q2 ↑/g)||[]).length,2,'MotoGP Q1 only first 2 marked');
+  assert.doesNotMatch(timing.view.innerHTML,/Sessionens snabbaste varv:/,'old Moto2 record cannot leak into MotoGP');
   push({'switch.motogp_no_spoiler':e('on')});
-  assert.doesNotMatch(timing.view.innerHTML,/Q2 ↑|RIDER1/,'spoiler must hide rider info');
+  assert.doesNotMatch(timing.view.innerHTML,/Q2 ↑|RIDER1|nt-feed-age/,'spoiler must hide rider data and chip');
   timing.disconnectedCallback();overview.disconnectedCallback();
   assert.ok(!bundle.includes('hass.callService('),'one file remains read-only');
-  console.log('PASS: one resource, future next-start, unresolved start, 15m cleanup, Moto2/MotoGP Q1, local clock, spoiler');
+  console.log('PASS: one resource, next-start, Q1, local clock, PB, persistent session record, freshness, spoiler');
 })().catch(err=>{console.error(err);process.exitCode=1;});
