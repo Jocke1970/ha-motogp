@@ -1,0 +1,109 @@
+name: Package MotoGP HACS beta
+
+on:
+  push:
+    branches: [beta]
+    paths:
+      - '.github/workflows/hacs-beta-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: motogp-hacs-beta-package
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Run offline archive and rollback regressions
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p 'test_session_lap_archive.py' -v
+          python -m unittest discover -s tests -p 'test_beta_installer.py' -v
+      - name: Assemble and verify entire integration from pinned reviewed source
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+          import importlib.util
+          import json
+          import pathlib
+          import subprocess
+
+          SOURCE = 'c4939f4a8997e526f5846d306161bccdb9a3d8c7'
+          PREFIX = 'backend/deployed/v1.0.9/custom_components/motogp_sensor/'
+          OUT = pathlib.Path('custom_components/motogp_sensor')
+          spec = importlib.util.spec_from_file_location('beta_installer', 'scripts/install-session-archive-beta.py')
+          installer = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(installer)
+          assert installer.SOURCE_COMMIT == '2b092efeb784a4267c699b3a7f242c520cbc92da'
+          assert installer.ARCHIVE_BLOB == 'f20ceb90348ff124bdbc049faff4e0d90cf6b8b0'
+          paths = subprocess.check_output(['git','ls-tree','-r','--name-only', SOURCE, PREFIX], text=True).splitlines()
+          assert len(paths) == 14 and all(path.startswith(PREFIX) for path in paths), paths
+          OUT.mkdir(parents=True, exist_ok=True)
+          for path in paths:
+              data = subprocess.check_output(['git','show',f'{SOURCE}:{path}'])
+              name = path.removeprefix(PREFIX)
+              assert '/' not in name and not (OUT / name).exists(), name
+              if name in installer.EXPECTED:
+                  assert installer.blob(data) == installer.EXPECTED[name], f'Unexpected source: {name}'
+              (OUT / name).write_bytes(data)
+          source_manifest = (OUT / 'manifest.json').read_bytes()
+          assert installer.blob(source_manifest) == 'f671a29a23193a2a1bd023d9d41279ae3fab7655'
+          baseline = (OUT / 'coordinator.py').read_bytes()
+          candidate = installer.patch(baseline)
+          assert installer.blob(candidate) == 'bd953cbf20f4f435c277e7a4265c38f6cb4aa37a', 'Candidate differs from CI-reviewed build'
+          (OUT / 'coordinator.py').write_bytes(candidate)
+          archive = pathlib.Path('backend/session_lap_archive.py').read_bytes()
+          assert installer.blob(archive) == installer.ARCHIVE_BLOB
+          (OUT / 'session_lap_archive.py').write_bytes(archive)
+          manifest = json.loads(source_manifest)
+          assert manifest['domain'] == 'motogp_sensor' and manifest['version'] == '1.0.9'
+          manifest.update(version='1.0.9.1b1',
+                          documentation='https://github.com/Jocke1970/ha-motogp/blob/beta/docs/hacs-beta-installation.md',
+                          issue_tracker='https://github.com/Jocke1970/ha-motogp/issues',
+                          codeowners=['@Jocke1970'])
+          (OUT / 'manifest.json').write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          hacs = json.loads(pathlib.Path('hacs.json').read_text())
+          assert hacs['name'] and not hacs.get('content_in_root') and not hacs.get('zip_release')
+          assert len(list(OUT.glob('*.py'))) == 14 and len(list(OUT.iterdir())) == 15
+          for file in OUT.glob('*.py'):
+              compile(file.read_bytes(), str(file), 'exec')
+          print('HACS package: domain=motogp_sensor, version=1.0.9.1b1, 15 integration files')
+          print('Pinned reviewed coordinator:', installer.blob(candidate))
+          print('Pinned archive:', installer.blob(archive))
+          PY
+          git add custom_components/motogp_sensor
+          git diff --cached --stat
+      - name: Publish packaged beta branch
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Package reviewed v1.0.9.1b1 complete HACS integration'
+            git push origin HEAD:beta
+          fi
+      - name: Publish tagged GitHub prerelease for HACS version selection
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=v1.0.9.1b1
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo 'Release already exists; refusing to silently replace it.'
+            exit 1
+          fi
+          gh release create "$TAG" --target "$(git rev-parse HEAD)" --prerelease \
+            --title 'MotoGP Sensor v1.0.9.1b1 — HACS beta' \
+            --notes-file docs/hacs-beta-release-notes.md
+          gh release view "$TAG" --json tagName,isPrerelease,url
