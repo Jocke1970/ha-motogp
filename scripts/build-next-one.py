@@ -45,6 +45,14 @@ def build(directory, destination):
     base = swap(base, "elapsed?'PASSERAT':'KOMMANDE'",
         "elapsed?'TID PASSERAD':s._wall.date<now?'INVÄNTAR STATUS':'KOMMANDE'",
         'schedule status is not session finish')
+    base = swap(base,
+        'const next=sessions.find(isLive)||sessions.find(s=>!past(s));',
+        'const next=sessions.find(isLive)||sessions.find(s=>s._wall.date>now&&!explicitFinish(s));',
+        'overview next session must actually be in the future')
+    base = swap(base,
+        'const open=this._expanded(day),upcoming=items.find(s=>!past(s));',
+        'const open=this._expanded(day),upcoming=items.find(isLive)||items.find(s=>s._wall.date>now&&!explicitFinish(s));',
+        'day next session must actually be in the future')
     base = swap(base, '🏁 MOTOGP · ${esc(VERSION)}',
                 f'🏁 MOTOGP NEXT · {DISPLAY_VERSION}', 'unified version header')
     base = swap(base, '${esc(TAG)} · ${esc(BUILD)} · testresurs',
@@ -52,8 +60,8 @@ def build(directory, destination):
                 'unified footer')
 
     split = source['ha-motogp-next-split.js']
-    # nextPass() in the pinned source is already STRICTLY future-oriented.
-    # Do not put a started session back into the next-start calculation.
+    # nextPass() in the pinned source is STRICTLY future-oriented. A started
+    # session is represented separately and must never be called the next start.
     split = swap(split, "if (seconds < 0) return 'Starttid passerad';",
         "if (seconds < 0) return 'Starttid passerad · inväntar status';",
         'started but no confirmed status')
