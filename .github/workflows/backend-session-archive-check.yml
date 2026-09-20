@@ -43,4 +43,5 @@ jobs:
           test "$(git hash-object backend/deployed/v1.0.9/custom_components/motogp_sensor/coordinator.py)" = 87a2a7217dc1e6d748cfcd8b4cd88eda43c5c163
           grep -q 'self.hass.async_add_executor_job(' /tmp/motogp-session-candidate/coordinator.py
           grep -q 'live.get("tv_delay_ready") is True' /tmp/motogp-session-candidate/coordinator.py
-          test "$(git status --porcelain | wc -l)" -eq 0
+          # py_compile/unittest create untracked __pycache__; only tracked source mutation matters.
+          test -z "$(git status --porcelain --untracked-files=no)"
