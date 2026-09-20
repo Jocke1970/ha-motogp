@@ -26,9 +26,9 @@ jobs:
           set -euo pipefail
           python3 scripts/build-next-one.py frontend /tmp/ha-motogp-next.js
           node --check /tmp/ha-motogp-next.js
-          test "$(git hash-object dist/ha-motogp-next.js)" = c40b9cf65bd150043aecf8c0efeaa10a291d269d
+          test "$(git hash-object dist/ha-motogp-next.js)" = b15fb60af3a8140c191261f9ec0eac224b530d7b
           test "$(git hash-object dist/ha-motogp-next.js)" = "$(git hash-object /tmp/ha-motogp-next.js)"
-      - name: Session transitions, Q1, local timer, spoiler and 15-minute cleanup
+      - name: Session transitions, Q1, lap stats, live age, local timer and spoiler
         run: node tests/frontend-next-one.cjs /tmp/ha-motogp-next.js
       - name: Installer syntax, verified old-version upgrade, repeatability and tamper rejection
         run: |
@@ -40,12 +40,12 @@ jobs:
           export MOTOGP_WWW_DIR="$staging/www"
           export MOTOGP_BUNDLE_FILE="$PWD/dist/ha-motogp-next.js"
           target="$staging/www/ha-motogp-next.js"
-          git show 430dbac5133dff0e722bc82aec9bdf96bf6e22e7:dist/ha-motogp-next.js > "$target"
-          test "$(git hash-object "$target")" = bd8d9eb66bb867dd6552587d9850e7b41e05b1b6
+          git show 0cfc4708ed0438b432d74f5ad560ef1eddacf1b2:dist/ha-motogp-next.js > "$target"
+          test "$(git hash-object "$target")" = c40b9cf65bd150043aecf8c0efeaa10a291d269d
           bash scripts/install-next-one.sh
           node --check "$target"
           sha="$(git hash-object "$target")"
-          test "$sha" = c40b9cf65bd150043aecf8c0efeaa10a291d269d
+          test "$sha" = b15fb60af3a8140c191261f9ec0eac224b530d7b
           bash scripts/install-next-one.sh
           test "$sha" = "$(git hash-object "$target")"
           printf '\n/* modified */\n' >> "$target"
