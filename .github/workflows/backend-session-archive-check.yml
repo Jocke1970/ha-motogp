@@ -1,0 +1,31 @@
+name: Backend session archive check
+
+on:
+  push:
+    branches: [dev, beta]
+    paths:
+      - 'backend/session_lap_archive.py'
+      - 'tests/test_session_lap_archive.py'
+      - '.github/workflows/backend-session-archive-check.yml'
+  pull_request:
+    branches: [beta, main]
+    paths:
+      - 'backend/session_lap_archive.py'
+      - 'tests/test_session_lap_archive.py'
+      - '.github/workflows/backend-session-archive-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  session-archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Syntax
+        run: python -m py_compile backend/session_lap_archive.py tests/test_session_lap_archive.py
+      - name: Session archive regression
+        run: python -m unittest discover -s tests -p 'test_session_lap_archive.py' -v
