@@ -35,7 +35,7 @@ jobs:
           python3 scripts/build-next-one.py frontend dist/ha-motogp-next.js
           node --check dist/ha-motogp-next.js
           node tests/frontend-next-one.cjs dist/ha-motogp-next.js
-          test "$(git hash-object dist/ha-motogp-next.js)" = bd8d9eb66bb867dd6552587d9850e7b41e05b1b6
+          test "$(git hash-object dist/ha-motogp-next.js)" = c40b9cf65bd150043aecf8c0efeaa10a291d269d
       - name: Publish only when the compiled JS differs
         run: |
           set -euo pipefail
