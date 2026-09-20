@@ -2,7 +2,7 @@
 
 Unofficial Home Assistant companion project based on [`Liionboy/motogp_sensor`](https://github.com/Liionboy/motogp_sensor). **Source of truth is the reviewed `dev` branch, not ad-hoc patch scripts in `/config`.** This is not yet a fully tested deployable release; do not blindly replace the running HA integration or promote to `beta`/`main`.
 
-> **Read first:** [Project status](docs/project-status.md) · [HA ↔ GitHub inventory](docs/deployment-sync-2026-09-18.md) · [Python source audit](docs/deployed-python-audit-2026-09-18.md) · [Patch cleanup audit](docs/provenance-cleanup-2026-09-18.md) · [Frontend newline proof](docs/frontend-drift-resolution-2026-09-18.md) · [Historical results](docs/historical-results.md).
+> **Read first:** [Project status](docs/project-status.md) · [Session logging roadmap](docs/session-logging-roadmap.md) · [HA ↔ GitHub inventory](docs/deployment-sync-2026-09-18.md) · [Python source audit](docs/deployed-python-audit-2026-09-18.md) · [Patch cleanup audit](docs/provenance-cleanup-2026-09-18.md) · [Frontend newline proof](docs/frontend-drift-resolution-2026-09-18.md) · [Historical results](docs/historical-results.md).
 
 ## Current components
 
@@ -25,6 +25,10 @@ Unofficial Home Assistant companion project based on [`Liionboy/motogp_sensor`](
 - `backend/result_archive.py`: uninstalled historical-results prototype, needs real API + HA Store/service/UI integration and spoiler protections.
 - `scripts/patch_motogp_sensor_v1_0_10.sh`: historical version-gated patch for upstream 1.0.10. **Never apply or force it onto modified installed 1.0.9.** The prior on-host scripts are quarantined, not active deploy tools.
 - `docs/`: current status, provenance, deployment sync, rollback/testing gates.
+
+## Planned: automatic lap and session archive
+
+The [session logging roadmap](docs/session-logging-roadmap.md) documents the proposed unattended backend collector, status + session-ID transitions, one permanent JSON file per event/class/session, restart recovery, TV-delay/spoiler safety, per-rider lap expanders and future season statistics. **This is a plan, not installed functionality.** No new Lovelace resource, legacy-card replacement or backend deployment follows from the documentation alone.
 
 All new code starts on `dev`, with tests and a documented installed version and rollback, then explicit review and HA validation before `dev → beta → main`. Do not assume that the public repo provides access to the running host. Do not commit whole `/config`, secrets, `.storage`, recorder, backup or unreviewed patch scripts. Do not modify the working legacy dashboard as part of test-card work.
 
