@@ -2,7 +2,7 @@
 
 Unofficial Home Assistant companion project based on [`Liionboy/motogp_sensor`](https://github.com/Liionboy/motogp_sensor). **Source of truth is the reviewed `dev` branch, not ad-hoc patch scripts in `/config`.** This is not yet a fully tested deployable release; do not blindly replace the running HA integration or promote to `beta`/`main`.
 
-> **Read first:** [Project status](docs/project-status.md) · [Session logging roadmap](docs/session-logging-roadmap.md) · [HA ↔ GitHub inventory](docs/deployment-sync-2026-09-18.md) · [Python source audit](docs/deployed-python-audit-2026-09-18.md) · [Patch cleanup audit](docs/provenance-cleanup-2026-09-18.md) · [Frontend newline proof](docs/frontend-drift-resolution-2026-09-18.md) · [Historical results](docs/historical-results.md).
+> **Read first:** [Project status](docs/project-status.md) · [Session logging roadmap](docs/session-logging-roadmap.md) · [Next UI roadmap](docs/ui-next-layout-roadmap-2026-09-20.md) · [HA ↔ GitHub inventory](docs/deployment-sync-2026-09-18.md) · [Python source audit](docs/deployed-python-audit-2026-09-18.md) · [Patch cleanup audit](docs/provenance-cleanup-2026-09-18.md) · [Frontend newline proof](docs/frontend-drift-resolution-2026-09-18.md) · [Historical results](docs/historical-results.md).
 
 ## Current components
 
@@ -29,6 +29,10 @@ Unofficial Home Assistant companion project based on [`Liionboy/motogp_sensor`](
 ## Planned: automatic lap and session archive
 
 The [session logging roadmap](docs/session-logging-roadmap.md) documents the proposed unattended backend collector, status + session-ID transitions, one permanent JSON file per event/class/session, restart recovery, TV-delay/spoiler safety, per-rider lap expanders and future season statistics. **This is a plan, not installed functionality.** No new Lovelace resource, legacy-card replacement or backend deployment follows from the documentation alone.
+
+## Planned: Next live timing layout and standings
+
+The [Next UI roadmap](docs/ui-next-layout-roadmap-2026-09-20.md) specifies the seven-column/two-line timing layout, original timing header, timer icon for session record, startgrid shown from T−15 minutes, position gain/loss, and Moto3/Moto2/MotoGP championship tabs. It distinguishes frontend-only changes from backend data dependencies. **This is not an installed UI update.**
 
 All new code starts on `dev`, with tests and a documented installed version and rollback, then explicit review and HA validation before `dev → beta → main`. Do not assume that the public repo provides access to the running host. Do not commit whole `/config`, secrets, `.storage`, recorder, backup or unreviewed patch scripts. Do not modify the working legacy dashboard as part of test-card work.
 
