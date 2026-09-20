@@ -8,8 +8,11 @@ on:
       - 'frontend/ha-motogp-next-split.js'
       - 'frontend/ha-motogp-next-split-enhancements.js'
       - 'frontend/ha-motogp-next-gap-trends.js'
+      - 'frontend/ha-motogp-next-ui-preview.js'
       - 'scripts/build-next-one.py'
+      - 'scripts/build-next-ui-preview.py'
       - 'tests/frontend-next-one.cjs'
+      - 'tests/frontend-next-ui-preview.cjs'
       - '.github/workflows/next-one-distribute.yml'
 
 permissions:
@@ -28,14 +31,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Build and validate deliverable
+      - name: Build old pinned baseline and verify regressions
+        run: |
+          set -euo pipefail
+          python3 scripts/build-next-one.py frontend /tmp/ha-motogp-next-baseline.js
+          test "$(git hash-object /tmp/ha-motogp-next-baseline.js)" = b15fb60af3a8140c191261f9ec0eac224b530d7b
+          node tests/frontend-next-one.cjs /tmp/ha-motogp-next-baseline.js
+      - name: Build and validate UI preview
         run: |
           set -euo pipefail
           mkdir -p dist
-          python3 scripts/build-next-one.py frontend dist/ha-motogp-next.js
+          node --check frontend/ha-motogp-next-ui-preview.js
+          node tests/frontend-next-ui-preview.cjs frontend/ha-motogp-next-ui-preview.js
+          python3 scripts/build-next-ui-preview.py frontend dist/ha-motogp-next.js
           node --check dist/ha-motogp-next.js
-          node tests/frontend-next-one.cjs dist/ha-motogp-next.js
-          test "$(git hash-object dist/ha-motogp-next.js)" = b15fb60af3a8140c191261f9ec0eac224b530d7b
+          echo "PREVIEW_BLOB=$(git hash-object dist/ha-motogp-next.js)"
+          test "$(git hash-object dist/ha-motogp-next.js)" = AWAITING_VERIFIED_PREVIEW_HASH
       - name: Publish only when the compiled JS differs
         run: |
           set -euo pipefail
