@@ -21,7 +21,7 @@ const ctx={Date:Clock,HTMLElement:Element,window:{customCards:[]},document:{crea
 const e=(state,attributes={})=>({state,attributes});
 const event='Qatar Airways Grand Prix of Austria';
 const meta=(category,name)=>({event,category,session_shortname:name,championship_id:3});
-const rider=(p)=>({position:p,number:30+p,surname:`RIDER${p}`,num_lap:3,last_lap_time:"1'42.123",gap_prev:p===1?'0.000':'.123',gap_first:p===1?'0.000':'.123'});
+const rider=p=>({position:p,number:30+p,surname:`RIDER${p}`,num_lap:3,last_lap_time:"1'42.123",gap_prev:p===1?'0.000':'.123',gap_first:p===1?'0.000':'.123'});
 const sessions=[{id:'m2q1',category:'Moto2',name:'Q1',date:'2026-09-19T13:40:00+00:00',status:'IN-PROGRESS'},
 {id:'m2q2',category:'Moto2',name:'Q2',date:'2026-09-19T14:05:00+00:00',status:'NOT-STARTED'},
 {id:'spr',category:'MotoGP',name:'Sprint',date:'2026-09-19T15:00:00+00:00',status:'NOT-STARTED'},
@@ -45,6 +45,9 @@ const live=(category,name,riders)=>({
     'switch.motogp_no_spoiler':e('off')};
   const push=x=>{states={...states,...x};overview.hass={states};timing.hass={states};};
   push({});
+  assert.match(overview.view.innerHTML,/0\.3\.0-dev\.2/);
+  assert.match(overview.view.innerHTML,/samlad testversion/);
+  assert.doesNotMatch(overview.view.innerHTML,/testresurs/);
   assert.equal((timing.view.innerHTML.match(/Q2 ↑/g)||[]).length,4,'Moto2 Q1 4 riders marked');
   assert.match(timing.view.innerHTML,/Q2-GRÄNS · preliminärt/);
   assert.match(timing.shadowRoot.innerHTML,/nt-heading>span:nth-child\(2\)\{text-align:center\}/);
@@ -57,14 +60,25 @@ const live=(category,name,riders)=>({
   now=Date.parse('2026-09-19T13:47:00+02:00');
   push({'sensor.motogp_session_status':e('Finished',{...meta('Moto2','Q1'),session_status_id:'F'}),
     'sensor.motogp_next_race':race(sessions.map(s=>s.id==='m2q1'?{...s,status:'FINISHED'}:s))});
-  assert.match(timing.view.innerHTML,/RIDER1/,'finished result still visible before cutoff');
+  assert.match(timing.view.innerHTML,/RIDER1/,'finished result visible before cutoff');
   now=Date.parse('2026-09-19T13:50:00+02:00');timing._render();
   assert.doesNotMatch(timing.view.innerHTML,/RIDER1/,'old riders cleared 15min before Q2');
   now=Date.parse('2026-09-19T15:04:00+02:00');
   push({'sensor.motogp_next_race':race(sessions.map(s=>s.id==='m2q1'||s.id==='m2q2'?{...s,status:'FINISHED'}:s))});
-  assert.match(timing.view.innerHTML,/Nästa: MotoGP · Sprint/,'start passed but Sprint remains next');
-  assert.doesNotMatch(timing.view.innerHTML,/Nästa: MotoGP · Warm Up/);
-  assert.match(overview.view.innerHTML,/INVÄNTAR STATUS/,'schedule does not pretend a started session finished');
+  assert.match(timing.view.innerHTML,/Schemalagd: MotoGP · Sprint/,'recently started pass is not falsely next or live');
+  assert.match(timing.view.innerHTML,/STARTTID PASSERAD · INVÄNTAR MATCHANDE DATA/);
+  assert.doesNotMatch(timing.view.innerHTML,/● LIVE|RIDER1/);
+  assert.match(overview.view.innerHTML,/INVÄNTAR STATUS/);
+  now=Date.parse('2026-09-20T10:01:00+02:00');
+  const sunday=[{id:'wup',category:'MotoGP',name:'Warm Up',date:'2026-09-20T09:40:00+00:00',status:'NOT-STARTED'},
+    {id:'m3rac',category:'Moto3',name:'Race',date:'2026-09-20T11:00:00+00:00',status:'NOT-STARTED'},
+    {id:'m2rac',category:'Moto2',name:'Race',date:'2026-09-20T12:15:00+00:00',status:'NOT-STARTED'},
+    {id:'gprac',category:'MotoGP',name:'Race',date:'2026-09-20T14:00:00+00:00',status:'NOT-STARTED'}];
+  push({'sensor.motogp_next_race':race(sunday)});
+  assert.match(timing.view.innerHTML,/Nästa: Moto3 · Race/,'next means future start, never overdue Warm Up');
+  assert.match(timing.view.innerHTML,/STATUS OKÄND: MotoGP Warm Up/,'unverified prior pass explicitly reported');
+  assert.doesNotMatch(timing.view.innerHTML,/Nästa: MotoGP · Warm Up|RIDER1|● LIVE/);
+  assert.match(overview.view.innerHTML,/Nästa: Moto3 Race/,'overview also advances to future start');
   now=Date.parse('2026-09-19T10:55:00+02:00');
   const q1=[{id:'gpq1',category:'MotoGP',name:'Q1',date:'2026-09-19T10:50:00+00:00',status:'IN-PROGRESS'},
     {id:'gpq2',category:'MotoGP',name:'Q2',date:'2026-09-19T11:15:00+00:00',status:'NOT-STARTED'}];
@@ -74,5 +88,5 @@ const live=(category,name,riders)=>({
   assert.doesNotMatch(timing.view.innerHTML,/Q2 ↑|RIDER1/,'spoiler must hide rider info');
   timing.disconnectedCallback();overview.disconnectedCallback();
   assert.ok(!bundle.includes('hass.callService('),'one file remains read-only');
-  console.log('PASS: single bundle, started session, 15min cleanup, Moto2/MotoGP Q1, live second clock, sensor resync, spoiler, stable custom elements');
+  console.log('PASS: one resource, future next-start, unresolved start, 15m cleanup, Moto2/MotoGP Q1, local clock, spoiler');
 })().catch(err=>{console.error(err);process.exitCode=1;});
