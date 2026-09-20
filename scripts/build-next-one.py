@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed build of a single MotoGP Next Lovelace resource from pinned sources."""
+"""Fail-closed build of the one MotoGP Next Lovelace resource from pinned sources."""
 import hashlib
 import pathlib
 import sys
@@ -8,10 +8,10 @@ EXPECTED = {
     'ha-motogp-next-card.js': 'b3ec963fa5f734e1db38e4d4a2ccb9d6b93a8286',
     'ha-motogp-next-split.js': '797594a2440a0818c2551ac2d3f0d502f163111b',
     'ha-motogp-next-split-enhancements.js': '346df5046cc9301e426650cb36cb32449883414c',
-    'ha-motogp-next-gap-trends.js': 'c9eba3a6de76237945ac7e37a7db9356e319560e',
+    'ha-motogp-next-gap-trends.js': '7da9eb365964138c598691033248f8a5b7554b2c',
 }
-BUILD = 'next-one-20260920-02'
-DISPLAY_VERSION = '0.3.0-dev.2'
+BUILD = 'next-one-20260920-03'
+DISPLAY_VERSION = '0.3.0-dev.3'
 
 
 def git_sha(data):
@@ -60,8 +60,6 @@ def build(directory, destination):
                 'unified footer')
 
     split = source['ha-motogp-next-split.js']
-    # nextPass() in the pinned source is STRICTLY future-oriented. A started
-    # session is represented separately and must never be called the next start.
     split = swap(split, "if (seconds < 0) return 'Starttid passerad';",
         "if (seconds < 0) return 'Starttid passerad · inväntar status';",
         'started but no confirmed status')
