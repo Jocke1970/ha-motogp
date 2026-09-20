@@ -7,8 +7,10 @@ on:
       - 'backend/session_lap_archive.py'
       - 'backend/deployed/v1.0.9/custom_components/motogp_sensor/coordinator.py'
       - 'tests/test_session_lap_archive.py'
+      - 'tests/test_beta_installer.py'
       - 'scripts/build-session-archive-candidate.py'
       - 'scripts/motogp-backend-preflight.py'
+      - 'scripts/install-session-archive-beta.py'
       - '.github/workflows/backend-session-archive-check.yml'
   pull_request:
     branches: [beta, main]
@@ -16,8 +18,10 @@ on:
       - 'backend/session_lap_archive.py'
       - 'backend/deployed/v1.0.9/custom_components/motogp_sensor/coordinator.py'
       - 'tests/test_session_lap_archive.py'
+      - 'tests/test_beta_installer.py'
       - 'scripts/build-session-archive-candidate.py'
       - 'scripts/motogp-backend-preflight.py'
+      - 'scripts/install-session-archive-beta.py'
       - '.github/workflows/backend-session-archive-check.yml'
 
 permissions:
@@ -31,11 +35,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Python syntax, archive regression and read-only preflight smoke test
+      - name: Python syntax, archive and installer regression, and read-only preflight smoke test
         run: |
           set -euo pipefail
-          python -m py_compile backend/session_lap_archive.py tests/test_session_lap_archive.py scripts/build-session-archive-candidate.py scripts/motogp-backend-preflight.py
+          python -m py_compile backend/session_lap_archive.py tests/test_session_lap_archive.py tests/test_beta_installer.py scripts/build-session-archive-candidate.py scripts/motogp-backend-preflight.py scripts/install-session-archive-beta.py
           python -m unittest discover -s tests -p 'test_session_lap_archive.py' -v
+          python -m unittest discover -s tests -p 'test_beta_installer.py' -v
           mkdir -p /tmp/motogp-fake-ha/custom_components/motogp_sensor /tmp/motogp-fake-ha/motogp_data/2026/example
           printf 'different backend\n' > /tmp/motogp-fake-ha/custom_components/motogp_sensor/coordinator.py
           printf '{"kind":"lap_observed","lap":1}\n' > /tmp/motogp-fake-ha/motogp_data/2026/example/capture.jsonl
@@ -43,20 +48,35 @@ jobs:
           grep -q 'INSTALLED_CODE_MUST_BE_REBASED' /tmp/motogp-preflight-result.txt
           grep -q 'OBSERVATION_FILES: 1' /tmp/motogp-preflight-result.txt
           grep -q 'No files modified' /tmp/motogp-preflight-result.txt
-      - name: Build isolated candidate using exact audited coordinator and archive blobs
+      - name: Build isolated candidate and verify installer constructs identical coordinator
         run: |
           set -euo pipefail
           python scripts/build-session-archive-candidate.py . /tmp/motogp-session-candidate
           python -m compileall -q /tmp/motogp-session-candidate
           test "$(git hash-object /tmp/motogp-session-candidate/session_lap_archive.py)" = f20ceb90348ff124bdbc049faff4e0d90cf6b8b0
           test "$(git hash-object backend/deployed/v1.0.9/custom_components/motogp_sensor/coordinator.py)" = 87a2a7217dc1e6d748cfcd8b4cd88eda43c5c163
-          grep -q 'self.hass.async_add_executor_job(' /tmp/motogp-session-candidate/coordinator.py
-          grep -q 'live.get("tv_delay_ready") is True' /tmp/motogp-session-candidate/coordinator.py
+          test "$(git hash-object scripts/install-session-archive-beta.py)" = 62c293979986de1eeb5cac23169dadbb85e42fd0
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path = Path('scripts/install-session-archive-beta.py')
+          spec = importlib.util.spec_from_file_location('beta_installer', path)
+          beta = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(beta)
+          original = Path('backend/deployed/v1.0.9/custom_components/motogp_sensor/coordinator.py').read_bytes()
+          built = Path('/tmp/motogp-session-candidate/coordinator.py').read_bytes()
+          assert beta.blob(original) == beta.EXPECTED['coordinator.py']
+          assert beta.patch(original) == built, 'Installer differs from reviewed candidate'
+          assert beta.blob(built) != beta.EXPECTED['coordinator.py']
+          print('Installer/candidate byte equivalence verified:', beta.blob(built))
+          PY
           test -z "$(git status --porcelain --untracked-files=no)"
-      - name: Publish candidate for code review ONLY (never auto-deploy)
+      - name: Publish uninstalled beta candidate for review (never auto-deploy)
         uses: actions/upload-artifact@v4
         with:
-          name: uninstalled-session-archive-candidate
-          path: /tmp/motogp-session-candidate/
+          name: uninstalled-session-archive-beta1-candidate
+          path: |
+            /tmp/motogp-session-candidate/
+            scripts/install-session-archive-beta.py
           if-no-files-found: error
           retention-days: 7
