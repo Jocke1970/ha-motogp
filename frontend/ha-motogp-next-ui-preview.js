@@ -133,10 +133,17 @@
       const available=schedule.map(s=>{
         if(!s||!['Race','Sprint'].includes(session(s.name||s.type))||
           ['FINISHED','CANCELLED','CANCELED'].includes(String(s.status||'').toUpperCase()))return null;
-        const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(s.date||''));
-        if(!m)return null;
-        const d=new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);
-        if(Number.isNaN(d.getTime())||d.getFullYear()!==+m[1]||d.getMonth()!==+m[2]-1||d.getDate()!==+m[3]||d.getHours()!==+m[4]||d.getMinutes()!==+m[5])return null;
+        let d=null;
+        if(valid(s.date_utc)) {
+          const exact=new Date(String(s.date_utc));
+          if(!Number.isNaN(exact.getTime()))d=exact;
+        }
+        if(!d) {
+          const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(s.date||''));
+          if(!m)return null;
+          d=new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);
+          if(Number.isNaN(d.getTime())||d.getFullYear()!==+m[1]||d.getMonth()!==+m[2]-1||d.getDate()!==+m[3]||d.getHours()!==+m[4]||d.getMinutes()!==+m[5])return null;
+        }
         const delta=d.getTime()-now.getTime();
         return delta>=0&&delta<=15*60000?{s,d,delta,category:cat(s.category)}:null;
       }).filter(Boolean).sort((x,y)=>x.delta-y.delta)[0];
