@@ -1,0 +1,75 @@
+name: MotoGP Next single-resource regression
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [main, beta]
+
+permissions:
+  contents: read
+
+jobs:
+  next-one:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Europe/Stockholm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check frozen dev.3 baseline and old regressions
+        run: |
+          set -euo pipefail
+          python3 scripts/build-next-one.py frontend /tmp/ha-motogp-next-baseline.js
+          test "$(git hash-object /tmp/ha-motogp-next-baseline.js)" = b15fb60af3a8140c191261f9ec0eac224b530d7b
+          node --check /tmp/ha-motogp-next-baseline.js
+          node tests/frontend-next-one.cjs /tmp/ha-motogp-next-baseline.js
+      - name: Build pinned UI preview and exercise full bundle
+        run: |
+          set -euo pipefail
+          python3 scripts/build-next-ui-preview.py frontend /tmp/ha-motogp-next.js
+          node --check /tmp/ha-motogp-next.js
+          test "$(git hash-object /tmp/ha-motogp-next.js)" = 1f99efb65c9ab8087b51079b25ce283324ebfe8d
+          test "$(git hash-object dist/ha-motogp-next.js)" = 1f99efb65c9ab8087b51079b25ce283324ebfe8d
+          node tests/frontend-next-ui-preview.cjs frontend/ha-motogp-next-ui-preview.js
+          sed -e 's/dev\\.3/dev\\.4/g' -e 's/samlad testversion/UI-preview/g' tests/frontend-next-one.cjs > /tmp/frontend-next-preview.cjs
+          node /tmp/frontend-next-preview.cjs /tmp/ha-motogp-next.js
+      - name: Installer syntax, verified dev.3 upgrade, repeatability and tamper rejection
+        run: |
+          set -euo pipefail
+          bash -n scripts/install-next-one.sh
+          staging="$(mktemp -d)"
+          trap 'rm -rf -- "$staging"' EXIT
+          mkdir -p "$staging/www"
+          export MOTOGP_WWW_DIR="$staging/www"
+          export MOTOGP_BUNDLE_FILE="$PWD/dist/ha-motogp-next.js"
+          target="$staging/www/ha-motogp-next.js"
+          git show 632a63c630f31beab08dadaeefa59b218837571c:dist/ha-motogp-next.js > "$target"
+          test "$(git hash-object "$target")" = b15fb60af3a8140c191261f9ec0eac224b530d7b
+          bash scripts/install-next-one.sh
+          node --check "$target"
+          sha="$(git hash-object "$target")"
+          test "$sha" = 1f99efb65c9ab8087b51079b25ce283324ebfe8d
+          bash scripts/install-next-one.sh
+          test "$sha" = "$(git hash-object "$target")"
+          printf '\n/* modified */\n' >> "$target"
+          if bash scripts/install-next-one.sh; then
+            echo 'ERROR: installer overwrote an unknown destination' >&2
+            exit 1
+          fi
+          test "$(git hash-object "$target")" != "$sha"
+          rm -- "$target"
+          printf 'tampered\n' > "$staging/tampered.js"
+          export MOTOGP_BUNDLE_FILE="$staging/tampered.js"
+          if bash scripts/install-next-one.sh; then
+            echo 'ERROR: installer accepted modified source' >&2
+            exit 1
+          fi
+          test ! -e "$target"
+          export MOTOGP_BUNDLE_FILE="$PWD/dist/ha-motogp-next.js"
+          bash scripts/install-next-one.sh
+          test "$(git hash-object "$target")" = "$sha"

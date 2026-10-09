@@ -1,0 +1,136 @@
+# MotoGP dashboard display mode
+#
+# REVIEW CANDIDATE ONLY. Replace the existing HA package only after checking
+# actual live entities; NEVER install as an additional packages/*.yaml file.
+# Intended destination if approved: /config/packages/motogp_dashboard_mode.yaml
+# Existing packages include in configuration.yaml is required.
+
+input_boolean:
+  motogp_calendar_preview:
+    name: MotoGP Calendar Preview
+    icon: mdi:calendar-month
+    initial: false
+
+input_datetime:
+  motogp_postrace_until:
+    name: MotoGP Post-race Until
+    has_date: true
+    has_time: true
+
+template:
+  - binary_sensor:
+      - name: MotoGP Weekend View Available
+        unique_id: motogp_weekend_view_available
+        icon: mdi:flag-checkered
+        # End of *any* practice/qualifying session must not hide the weekend.
+        # Event-date eligibility is independent of live session status.
+        state: >
+          {% set race_week = is_state('binary_sensor.motogp_race_week', 'on') %}
+          {% set start = (state_attr('sensor.motogp_next_race', 'date_start') or '') | string %}
+          {% set end = (state_attr('sensor.motogp_next_race', 'date_end') or '') | string %}
+          {% set today = now().date().isoformat() %}
+          {% set dates_valid = start[:10] | length == 10 and end[:10] | length == 10 %}
+          {% set event_now = dates_valid and start[:10] <= today <= end[:10] %}
+          {% set race_week_not_expired = race_week and (not dates_valid or today <= end[:10]) %}
+          {% set postrace_until = as_timestamp(states('input_datetime.motogp_postrace_until'), 0) %}
+          {{ event_now or race_week_not_expired or postrace_until > as_timestamp(now()) }}
+
+      - name: MotoGP Weekend View
+        unique_id: motogp_weekend_view
+        icon: mdi:motorbike
+        state: >
+          {{
+            is_state('binary_sensor.motogp_weekend_view_available', 'on')
+            and is_state('input_boolean.motogp_calendar_preview', 'off')
+          }}
+
+      - name: MotoGP Calendar View
+        unique_id: motogp_calendar_view
+        icon: mdi:calendar-month
+        state: >
+          {{
+            is_state('binary_sensor.motogp_weekend_view_available', 'off')
+            or is_state('input_boolean.motogp_calendar_preview', 'on')
+          }}
+
+automation:
+  - id: motogp_set_postrace_until_midnight
+    alias: MotoGP - Keep finished race view until midnight
+    mode: restart
+    triggers:
+      - trigger: state
+        entity_id: sensor.motogp_session_status
+        to: "Finished"
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.motogp_race_week
+        state: "on"
+      - condition: template
+        value_template: >
+          {{ states('sensor.motogp_current_session') == 'RAC' }}
+      - condition: template
+        value_template: >
+          {% set category = state_attr('sensor.motogp_session_status', 'category') | string | upper %}
+          {% set championship = state_attr('sensor.motogp_session_status', 'championship_id') | string %}
+          {{ category == 'MOTOGP' or championship == '3' }}
+    actions:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.motogp_postrace_until
+        data:
+          datetime: >
+            {{
+              (today_at('00:00') + timedelta(days=1))
+              .strftime('%Y-%m-%d %H:%M:%S')
+            }}
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.motogp_calendar_preview
+
+  - id: motogp_init_postrace_until_after_restart
+    alias: MotoGP - Restore today's post-race view after restart
+    mode: single
+    triggers:
+      - trigger: homeassistant
+        event: start
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.motogp_race_week
+        state: "on"
+      - condition: template
+        value_template: >
+          {% set status = states('sensor.motogp_session_status') %}
+          {% set status_id = state_attr('sensor.motogp_session_status', 'session_status_id') | string | upper %}
+          {{ status == 'Finished' or status_id in ['C', 'F'] }}
+      - condition: template
+        value_template: >
+          {% set end_raw = state_attr('sensor.motogp_next_race', 'date_end') | string %}
+          {{ end_raw[:10] == now().date().isoformat() }}
+    actions:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.motogp_postrace_until
+        data:
+          datetime: >
+            {{
+              (today_at('00:00') + timedelta(days=1))
+              .strftime('%Y-%m-%d %H:%M:%S')
+            }}
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.motogp_calendar_preview
+
+  - id: motogp_reset_calendar_preview
+    alias: MotoGP - Reset calendar preview
+    mode: restart
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.motogp_weekend_view_available
+        to: "off"
+      - trigger: state
+        entity_id: binary_sensor.motogp_race_week
+        to: "on"
+    actions:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.motogp_calendar_preview

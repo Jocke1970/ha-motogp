@@ -1,0 +1,5 @@
+# Complete single-card configuration for the *motogp-test* view only.
+# Add this card after registering /local/ha-motogp-next-card.js as a JS module.
+# Keep the existing broken test card until this one is visually validated.
+# Do NOT replace the original MotoGP dashboard or Card-test mobile resource.
+type: custom:ha-motogp-next-card

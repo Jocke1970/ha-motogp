@@ -1,0 +1,31 @@
+name: Backend results check
+
+on:
+  push:
+    branches: [dev, beta]
+    paths:
+      - 'backend/result_archive.py'
+      - 'tests/test_result_archive.py'
+      - '.github/workflows/backend-results-check.yml'
+  pull_request:
+    branches: [beta, main]
+    paths:
+      - 'backend/result_archive.py'
+      - 'tests/test_result_archive.py'
+      - '.github/workflows/backend-results-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  historical-results:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Python syntax
+        run: python -m py_compile backend/result_archive.py tests/test_result_archive.py
+      - name: Historical results regression
+        run: python -m unittest discover -s tests -p 'test_result_archive.py' -v

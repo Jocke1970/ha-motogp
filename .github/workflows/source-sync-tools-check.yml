@@ -1,0 +1,33 @@
+name: Source sync tools check
+
+on:
+  push:
+    branches: [dev, beta]
+    paths:
+      - 'scripts/import_deployed_snapshot.py'
+      - 'scripts/export_motogp_provenance.py'
+      - 'scripts/sync_deployed_to_dev.sh'
+      - '.github/workflows/source-sync-tools-check.yml'
+  pull_request:
+    branches: [beta, main]
+    paths:
+      - 'scripts/import_deployed_snapshot.py'
+      - 'scripts/export_motogp_provenance.py'
+      - 'scripts/sync_deployed_to_dev.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python syntax
+        run: |
+          python3 -m py_compile scripts/import_deployed_snapshot.py scripts/export_motogp_provenance.py
+      - name: Bash syntax
+        run: bash -n scripts/sync_deployed_to_dev.sh

@@ -1,0 +1,27 @@
+name: Deployed Python source integrity
+
+on:
+  push:
+    branches: [dev, beta]
+    paths:
+      - 'backend/deployed/v1.0.9/custom_components/**'
+      - 'backend/deployed/v1.0.9/INVENTORY.txt'
+  pull_request:
+    branches: [beta, main]
+    paths:
+      - 'backend/deployed/v1.0.9/custom_components/**'
+      - 'backend/deployed/v1.0.9/INVENTORY.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify captured HA v1.0.9 source and inventory
+        run: python3 scripts/import_deployed_snapshot.py --verify

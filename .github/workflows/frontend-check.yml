@@ -1,0 +1,82 @@
+name: Frontend check
+
+on:
+  push:
+    branches: [dev, beta]
+  pull_request:
+    branches: [beta, main]
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax (mobile legacy, isolated next, and split cards)
+        run: |
+          node --check frontend/ha-motogp-card.js
+          node --check frontend/ha-motogp-next-card.js
+          node --check frontend/ha-motogp-next-split.js
+          node --check frontend/ha-motogp-next-split-enhancements.js
+          node --check frontend/ha-motogp-next-gap-trends.js
+      - name: Build ONE distributable Next resource (pinned source and syntax)
+        run: |
+          python3 scripts/build-next-one.py frontend /tmp/ha-motogp-next.js
+          node --check /tmp/ha-motogp-next.js
+      - name: Original frontend smoke tests
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-smoke.cjs
+      - name: Original spoiler and midnight regression
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-spoiler.cjs
+      - name: Original version and duplicate-resource regression
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-version.cjs
+      - name: New isolated MotoGP frontend regression
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-next.cjs
+      - name: Standalone timing and overview regression
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-next-split.cjs
+      - name: Reversible split enhancement regression
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-next-split-enhancements.cjs
+      - name: Gap trend and fastest lap regression
+        env:
+          TZ: Europe/Stockholm
+        run: node tests/frontend-next-gap-trends.cjs
+      - name: 'Historical unified split installer: syntax, repeatability and tamper guard'
+        run: |
+          set -euo pipefail
+          bash -n scripts/install-next-split-unified.sh
+          staging="$(mktemp -d)"
+          trap 'rm -rf -- "$staging"' EXIT
+          cp frontend/ha-motogp-next-card.js frontend/ha-motogp-next-split.js \
+             frontend/ha-motogp-next-split-enhancements.js "$staging/"
+          # The old split installer explicitly pins the old gap add-on. Test it
+          # with that historical source, NOT the updated one-file Next module.
+          git show af1ac68f2f8dab9a7d85088773d0877e225c4996:frontend/ha-motogp-next-gap-trends.js \
+            > "$staging/ha-motogp-next-gap-trends.js"
+          MOTOGP_WWW_DIR="$staging" bash scripts/install-next-split-unified.sh
+          node --check "$staging/ha-motogp-next-split.js"
+          first_sha="$(git hash-object "$staging/ha-motogp-next-split.js")"
+          MOTOGP_WWW_DIR="$staging" bash scripts/install-next-split-unified.sh
+          test "$first_sha" = "$(git hash-object "$staging/ha-motogp-next-split.js")"
+          printf '\n/* unexpected modification */\n' >> "$staging/ha-motogp-next-split.js"
+          if MOTOGP_WWW_DIR="$staging" bash scripts/install-next-split-unified.sh; then
+            echo 'ERROR: the installer accepted a modified split file' >&2
+            exit 1
+          fi
