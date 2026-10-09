@@ -38,7 +38,7 @@ jobs:
           node tests/frontend-next-ui-preview.cjs frontend/ha-motogp-next-ui-preview.js
           sed -e 's/dev\\.3/dev\\.5/g' -e 's/samlad testversion/UI-preview/g' tests/frontend-next-one.cjs > /tmp/frontend-next-preview.cjs
           node /tmp/frontend-next-preview.cjs /tmp/ha-motogp-next.js
-      - name: Installer syntax, verified dev.3 upgrade, repeatability and tamper rejection
+      - name: Installer syntax, verified dev.4 upgrade, repeatability and tamper rejection
         run: |
           set -euo pipefail
           bash -n scripts/install-next-one.sh
@@ -48,8 +48,8 @@ jobs:
           export MOTOGP_WWW_DIR="$staging/www"
           export MOTOGP_BUNDLE_FILE="$PWD/dist/ha-motogp-next.js"
           target="$staging/www/ha-motogp-next.js"
-          git show 632a63c630f31beab08dadaeefa59b218837571c:dist/ha-motogp-next.js > "$target"
-          test "$(git hash-object "$target")" = b15fb60af3a8140c191261f9ec0eac224b530d7b
+          git show b7dbc1a542d1863004602f37c32e887d13c006d6:dist/ha-motogp-next.js > "$target"
+          test "$(git hash-object "$target")" = 1f99efb65c9ab8087b51079b25ce283324ebfe8d
           bash scripts/install-next-one.sh
           node --check "$target"
           sha="$(git hash-object "$target")"
