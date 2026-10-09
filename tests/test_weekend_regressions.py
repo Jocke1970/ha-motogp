@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
+import types
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -54,6 +56,43 @@ def check_broadcast_url_template_contract() -> None:
     source = (INTEGRATION / "const.py").read_text(encoding="utf-8")
     expected = 'PULSELIVE_BROADCAST_EVENT_URL = PULSELIVE_BASE_URL + "/events/{uuid}"'
     assert expected in source, "Broadcast event URL must preserve {uuid} until .format()"
+
+    # Import const.py with the minimum HA stub needed to execute module-level
+    # expressions. This catches NameError-style release failures that compileall
+    # cannot detect.
+    class _Platform:
+        SENSOR = "sensor"
+        BINARY_SENSOR = "binary_sensor"
+        CALENDAR = "calendar"
+        SWITCH = "switch"
+        SELECT = "select"
+
+    homeassistant = types.ModuleType("homeassistant")
+    homeassistant_const = types.ModuleType("homeassistant.const")
+    homeassistant_const.Platform = _Platform
+    previous_ha = sys.modules.get("homeassistant")
+    previous_const = sys.modules.get("homeassistant.const")
+    sys.modules["homeassistant"] = homeassistant
+    sys.modules["homeassistant.const"] = homeassistant_const
+    try:
+        path = INTEGRATION / "const.py"
+        spec = importlib.util.spec_from_file_location("motogp_const_smoke", path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("Unable to load const.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert module.PULSELIVE_BROADCAST_EVENT_URL.format(uuid="event-123").endswith(
+            "/events/event-123"
+        )
+    finally:
+        if previous_ha is None:
+            sys.modules.pop("homeassistant", None)
+        else:
+            sys.modules["homeassistant"] = previous_ha
+        if previous_const is None:
+            sys.modules.pop("homeassistant.const", None)
+        else:
+            sys.modules["homeassistant.const"] = previous_const
 
 
 def check_beta_version() -> None:
