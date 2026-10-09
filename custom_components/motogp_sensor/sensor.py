@@ -536,6 +536,7 @@ def _static_attributes(key: str, coordinator: MotogpCoordinator) -> dict[str, An
             attrs["circuit"] = _event_circuit(event)
             attrs["country"] = _event_country(event)
             attrs["sponsored_name"] = event.get("sponsored_name")
+            attrs["time_zone"] = static.get("schedule_time_zone")
             attrs["start_grids"] = static.get("start_grids", {})
             attrs["records_by_category"] = static.get(
                 "records_by_category", {}
