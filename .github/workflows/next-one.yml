@@ -33,10 +33,10 @@ jobs:
           set -euo pipefail
           python3 scripts/build-next-ui-preview.py frontend /tmp/ha-motogp-next.js
           node --check /tmp/ha-motogp-next.js
-          test "$(git hash-object /tmp/ha-motogp-next.js)" = 1f99efb65c9ab8087b51079b25ce283324ebfe8d
-          test "$(git hash-object dist/ha-motogp-next.js)" = 1f99efb65c9ab8087b51079b25ce283324ebfe8d
+          test "$(git hash-object /tmp/ha-motogp-next.js)" = 4c73aa7f22ec8876b77beede369d565e86e08e0d
+          test "$(git hash-object dist/ha-motogp-next.js)" = 4c73aa7f22ec8876b77beede369d565e86e08e0d
           node tests/frontend-next-ui-preview.cjs frontend/ha-motogp-next-ui-preview.js
-          sed -e 's/dev\\.3/dev\\.4/g' -e 's/samlad testversion/UI-preview/g' tests/frontend-next-one.cjs > /tmp/frontend-next-preview.cjs
+          sed -e 's/dev\\.3/dev\\.5/g' -e 's/samlad testversion/UI-preview/g' tests/frontend-next-one.cjs > /tmp/frontend-next-preview.cjs
           node /tmp/frontend-next-preview.cjs /tmp/ha-motogp-next.js
       - name: Installer syntax, verified dev.3 upgrade, repeatability and tamper rejection
         run: |
@@ -49,11 +49,11 @@ jobs:
           export MOTOGP_BUNDLE_FILE="$PWD/dist/ha-motogp-next.js"
           target="$staging/www/ha-motogp-next.js"
           git show 632a63c630f31beab08dadaeefa59b218837571c:dist/ha-motogp-next.js > "$target"
-          test "$(git hash-object "$target")" = edb096876e3396577199b48266a9c81516050cad
+          test "$(git hash-object "$target")" = b15fb60af3a8140c191261f9ec0eac224b530d7b
           bash scripts/install-next-one.sh
           node --check "$target"
           sha="$(git hash-object "$target")"
-          test "$sha" = 1f99efb65c9ab8087b51079b25ce283324ebfe8d
+          test "$sha" = 4c73aa7f22ec8876b77beede369d565e86e08e0d
           bash scripts/install-next-one.sh
           test "$sha" = "$(git hash-object "$target")"
           printf '\n/* modified */\n' >> "$target"
