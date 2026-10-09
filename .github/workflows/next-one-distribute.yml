@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/build-next-one.py frontend /tmp/ha-motogp-next-baseline.js
-          test "$(git hash-object /tmp/ha-motogp-next-baseline.js)" = b15fb60af3a8140c191261f9ec0eac224b530d7b
+          test "$(git hash-object /tmp/ha-motogp-next-baseline.js)" = edb096876e3396577199b48266a9c81516050cad
           node tests/frontend-next-one.cjs /tmp/ha-motogp-next-baseline.js
       - name: Build and validate UI preview
         run: |
