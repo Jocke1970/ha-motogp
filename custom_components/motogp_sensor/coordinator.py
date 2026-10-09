@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .api import MotogpApiClient, MotogpApiError
+from .session_lap_archive import ArchiveError, SessionLapArchive
 from .const import (
     DOMAIN,
     EVENT_LIVE_TIMING_OFFLINE,
@@ -71,6 +72,8 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=LIVE_POLLING_IDLE,
         )
         self.api = api
+        # Backend-owned archive: no UI, sensor-property or helper dependency.
+        self._session_lap_archive = SessionLapArchive(hass.config.path("motogp_data"))
         self.live_source = live_source
         self.race_week_start_day = race_week_start_day
         self.enabled_sensors = set(enabled_sensors)
@@ -302,6 +305,18 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         raw_live = live
         live = self._apply_tv_delay(raw_live, dt_util.utcnow())
 
+        # Archive ONLY a validated, coordinator-exposed TV-delayed sample.
+        # Do not record raw_live or an unready warm-up sample.
+        if live is not None and live.get("tv_delay_ready") is True:
+            season = self.static.get("season")
+            year = season.get("year") if isinstance(season, dict) else None
+            if year is not None:
+                try:
+                    await self.hass.async_add_executor_job(
+                        self._session_lap_archive.observe, live, int(year)
+                    )
+                except (ArchiveError, OSError, ValueError, TypeError) as err:
+                    _LOGGER.warning("MotoGP lap archive write failed: %s", err)
         # 3. Detect state transitions and fire events
         # MOTOGP_POSTRACE_ADVANCE_V1
         self._advance_after_final_motogp_race(live, now)
