@@ -2,7 +2,7 @@
 
 ## Current release track
 
-The project is on the strict **dev → beta → main** path. The October weekend candidate is **2026.10.0b1**. `main` is intentionally unchanged while the candidate is field-tested.
+The project is on the strict **dev → beta → main** path. The October weekend candidate is **2026.10.0b2**. `main` is intentionally unchanged while the candidate is field-tested.
 
 The integration domain remains `motogp_sensor`; preserve the existing Home Assistant config entry. The HACS backend and the independent Next Lovelace JS are separate delivery surfaces.
 
@@ -18,7 +18,15 @@ Observed on the user's HA:
 
 `track_status_codes=['B','T']` were observed but are rider track/pit-style states and are not used to infer a red flag.
 
-## 2026.10.0b1 fixes
+## Release correction
+
+**2026.10.0b1 must not be used.** Home Assistant exposed an import-time crash immediately after install:
+
+`NameError: name 'uuid' is not defined`
+
+Root cause: `PULSELIVE_BROADCAST_EVENT_URL` was declared with an f-string that tried to evaluate `{uuid}` during module import. `2026.10.0b2` preserves the placeholder literally until `.format(uuid=...)` is called and adds an executable import-time regression test so this class of error is caught before release.
+
+## 2026.10.0b2 fixes
 
 ### Live-session polling
 
@@ -52,7 +60,7 @@ Green dev gates on 2026-10-09:
 
 ## Still to verify on the Home Assistant host
 
-- Install HACS prerelease **2026.10.0b1** and restart HA once.
+- Install HACS prerelease **2026.10.0b2** and restart HA once.
 - During a live session, confirm Red Flag/Delayed no longer causes a 300-second update gap.
 - Confirm `sensor.motogp_next_race` exposes the event `time_zone` and session entries have `date_utc`.
 - Install/update the separate Next dev.5 JS and confirm Mandalika times display in Swedish local time.
