@@ -1,4 +1,6 @@
-# MotoGP Sensor 2026.10.0b1 — weekend beta
+# MotoGP Sensor 2026.10.0b2 — weekend beta
+
+**Supersedes broken 2026.10.0b1.** b1 fails during Home Assistant import because the Broadcast event URL constant eagerly evaluates an undefined `uuid` name. b2 fixes that constant and adds an executable import-time release regression.
 
 **Beta target:** 2026-10-09. This prerelease keeps the existing `motogp_sensor` domain and is intended for live validation before any promotion to `main`.
 
