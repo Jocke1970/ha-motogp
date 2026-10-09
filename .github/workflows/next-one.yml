@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/build-next-one.py frontend /tmp/ha-motogp-next-baseline.js
-          test "$(git hash-object /tmp/ha-motogp-next-baseline.js)" = b15fb60af3a8140c191261f9ec0eac224b530d7b
+          test "$(git hash-object /tmp/ha-motogp-next-baseline.js)" = edb096876e3396577199b48266a9c81516050cad
           node --check /tmp/ha-motogp-next-baseline.js
           node tests/frontend-next-one.cjs /tmp/ha-motogp-next-baseline.js
       - name: Build pinned UI preview and exercise full bundle
@@ -49,7 +49,7 @@ jobs:
           export MOTOGP_BUNDLE_FILE="$PWD/dist/ha-motogp-next.js"
           target="$staging/www/ha-motogp-next.js"
           git show 632a63c630f31beab08dadaeefa59b218837571c:dist/ha-motogp-next.js > "$target"
-          test "$(git hash-object "$target")" = b15fb60af3a8140c191261f9ec0eac224b530d7b
+          test "$(git hash-object "$target")" = edb096876e3396577199b48266a9c81516050cad
           bash scripts/install-next-one.sh
           node --check "$target"
           sha="$(git hash-object "$target")"
