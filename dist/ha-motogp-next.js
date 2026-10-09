@@ -1,4 +1,4 @@
-/* MotoGP Next SINGLE Lovelace resource | build next-one-20260920-04 | read only. */
+/* MotoGP Next SINGLE Lovelace resource | build next-one-20261009-01 | read only. */
 /* MotoGP Next: isolated frontend for motogp-test. No HA writes or service calls. */
 (() => {
   'use strict';
@@ -31,8 +31,15 @@
   const canon = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const pad = n => String(n).padStart(2, '0');
   const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  // Preserve reported event wall time; source currently marks wall-clock schedule with +00:00.
-  function parseWall(raw) {
+  // Prefer the backend-normalized UTC timestamp. Fall back to the legacy
+  // circuit wall-clock value if timezone metadata could not be resolved.
+  function parseWall(raw, utc) {
+    if (valid(utc)) {
+      const exact = new Date(String(utc));
+      if (!Number.isNaN(exact.getTime())) {
+        return {date:exact, day:dayKey(exact), time:`${pad(exact.getHours())}:${pad(exact.getMinutes())}`};
+      }
+    }
     const m = String(raw || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
     if (!m) return null;
     const date = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]);
@@ -54,8 +61,8 @@
     const a = race?.attributes || {};
     const source = Array.isArray(a.sessions_all) ? a.sessions_all : Array.isArray(a.sessions) ? a.sessions : [];
     const start = String(a.date_start || '').slice(0,10), end = String(a.date_end || '').slice(0,10);
-    return source.filter(s => s && parseWall(s.date))
-      .map(s => ({...s, _wall:parseWall(s.date), _cat:cat(s.category || 'MotoGP'), _name:sess(s.name || s.type)}))
+    return source.filter(s => s && parseWall(s.date, s.date_utc))
+      .map(s => ({...s, _wall:parseWall(s.date, s.date_utc), _cat:cat(s.category || 'MotoGP'), _name:sess(s.name || s.type)}))
       .filter(s => (!start || s._wall.day >= start) && (!end || s._wall.day <= end))
       .sort((a,b) => a._wall.date - b._wall.date);
   }
@@ -296,9 +303,9 @@
       this._track(now,race);
       const event=valid(race?.state)?race.state:'Inget evenemang tillgängligt';
       const meta=[a.circuit,a.country,a.date_start&&a.date_end?dateRange(a.date_start,a.date_end):''].filter(valid);
-      this.shadowRoot.getElementById('app').innerHTML=`<div class="root"><section class="panel header"><div class="eyebrow">🏁 MOTOGP NEXT · 0.3.0-dev.4</div><h2>${esc(event)}</h2><div class="sub">${meta.map(esc).join(' · ')||'Väntar på evenemangsdata'}</div></section>`+
+      this.shadowRoot.getElementById('app').innerHTML=`<div class="root"><section class="panel header"><div class="eyebrow">🏁 MOTOGP NEXT · 0.3.0-dev.5</div><h2>${esc(event)}</h2><div class="sub">${meta.map(esc).join(' · ')||'Väntar på evenemangsdata'}</div></section>`+
         this._schedule(race,now)+`<div class="root">${this._weather()}${this._timing()}</div>`+
-        `<div class="foot">ha-motogp-next.js · 0.3.0-dev.4 · UI-preview</div></div>`;
+        `<div class="foot">ha-motogp-next.js · 0.3.0-dev.5 · UI-preview</div></div>`;
     }
     getCardSize(){return 8;}
     getGridOptions(){return {columns:12,rows:'auto',min_columns:6};}
@@ -335,9 +342,13 @@
   const safeColor = value => /^#?[0-9a-f]{6}$/i.test(String(value || '')) ? `#${String(value).replace('#', '')}` : '#94a3b8';
   const numberText = value => positive(value) === null ? '—' : String(value);
   const lapText = value => !valid(value) || /^0+(?:[.:']0+)?$/.test(String(value).trim()) ? '—' : String(value);
-  // The source marks local schedule wall times with +00:00. Match dev.4's wall-clock
-  // convention instead of parsing the suffix as a true UTC timestamp.
-  function parseStart(raw) {
+  // Prefer backend-normalized UTC. Keep the legacy circuit-wall-time parser
+  // only as a fallback when the backend could not resolve an event timezone.
+  function parseStart(raw, utc) {
+    if (valid(utc)) {
+      const exact = new Date(String(utc));
+      if (!Number.isNaN(exact.getTime())) return exact;
+    }
     const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(raw || ''));
     if (!m) return null;
     const date = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]);
@@ -351,7 +362,7 @@
     const source = Array.isArray(a.sessions_all) ? a.sessions_all : Array.isArray(a.sessions) ? a.sessions : [];
     const start = String(a.date_start || '').slice(0, 10), end = String(a.date_end || '').slice(0, 10);
     return source.map(pass => {
-      const date = parseStart(pass?.date);
+      const date = parseStart(pass?.date, pass?.date_utc);
       return date && pass ? {date, pass, category:category(pass.category || 'MotoGP'),
         name:sessionName(pass.name || pass.type || ''),
         day:`${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`,
@@ -484,7 +495,7 @@
         const schedule=race?.attributes||{};
         const entries=Array.isArray(schedule.sessions_all)?schedule.sessions_all:
           Array.isArray(schedule.sessions)?schedule.sessions:[];
-        const pending=entries.map(s=>({pass:s,date:parseStart(s?.date)}))
+        const pending=entries.map(s=>({pass:s,date:parseStart(s?.date,s?.date_utc)}))
           .filter(x=>x.date && x.date<=now && x.date.toDateString()===now.toDateString() &&
             now-x.date<2*60*60*1000 &&
             !['FINISHED','CANCELLED','CANCELED'].includes(String(x.pass.status||'').toUpperCase()) &&
@@ -1000,10 +1011,17 @@
       const available=schedule.map(s=>{
         if(!s||!['Race','Sprint'].includes(session(s.name||s.type))||
           ['FINISHED','CANCELLED','CANCELED'].includes(String(s.status||'').toUpperCase()))return null;
-        const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(s.date||''));
-        if(!m)return null;
-        const d=new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);
-        if(Number.isNaN(d.getTime())||d.getFullYear()!==+m[1]||d.getMonth()!==+m[2]-1||d.getDate()!==+m[3]||d.getHours()!==+m[4]||d.getMinutes()!==+m[5])return null;
+        let d=null;
+        if(valid(s.date_utc)) {
+          const exact=new Date(String(s.date_utc));
+          if(!Number.isNaN(exact.getTime()))d=exact;
+        }
+        if(!d) {
+          const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(s.date||''));
+          if(!m)return null;
+          d=new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);
+          if(Number.isNaN(d.getTime())||d.getFullYear()!==+m[1]||d.getMonth()!==+m[2]-1||d.getDate()!==+m[3]||d.getHours()!==+m[4]||d.getMinutes()!==+m[5])return null;
+        }
         const delta=d.getTime()-now.getTime();
         return delta>=0&&delta<=15*60000?{s,d,delta,category:cat(s.category)}:null;
       }).filter(Boolean).sort((x,y)=>x.delta-y.delta)[0];
