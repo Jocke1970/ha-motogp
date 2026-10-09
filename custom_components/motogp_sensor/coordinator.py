@@ -14,6 +14,7 @@ from homeassistant.util import dt as dt_util
 
 from .api import MotogpApiClient, MotogpApiError
 from .session_lap_archive import ArchiveError, SessionLapArchive
+from .schedule_time import canonical_time_zone, session_wall_time_to_utc
 from .const import (
     DOMAIN,
     EVENT_LIVE_TIMING_OFFLINE,
@@ -51,6 +52,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # Session types, best race first (used to pick "the race" of a weekend).
 RACE_SESSION_PRIORITY = ("RAC", "SPR")
+LIVE_SESSION_STATUS_IDS = frozenset({"I", "S", "R", "D"})
 
 
 class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -131,7 +133,7 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         live = self.live_data
         if not live:
             return False
-        return live.get("session_status_id") in ("I", "S")
+        return live.get("session_status_id") in LIVE_SESSION_STATUS_IDS
 
     @property
     def race_week(self) -> bool:
@@ -290,7 +292,7 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # 2b. Track/weather conditions for the active session.
         if (
             live is not None
-            and live.get("session_status_id") in ("I", "S")
+            and live.get("session_status_id") in LIVE_SESSION_STATUS_IDS
             and (
                 self._last_weather_refresh is None
                 or now - self._last_weather_refresh >= WEATHER_REFRESH_INTERVAL
@@ -327,7 +329,7 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         active = (
             live_online
             and raw_live is not None
-            and raw_live.get("session_status_id") in ("I", "S")
+            and raw_live.get("session_status_id") in LIVE_SESSION_STATUS_IDS
         )
         self.update_interval = LIVE_POLLING_ACTIVE if active else LIVE_POLLING_IDLE
 
@@ -395,7 +397,12 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 exact = sess
                 break
 
-            session_date = parse_api_date(sess.get("date"))
+            session_date = parse_api_date(
+                session_wall_time_to_utc(
+                    sess.get("date"), self.static.get("schedule_time_zone")
+                )
+                or sess.get("date")
+            )
             if (
                 session_date is not None
                 and session_date <= now
@@ -606,14 +613,19 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if not isinstance(sess, dict) or not sess.get("id"):
                     continue
 
-                session_date = parse_api_date(sess.get("date"))
+                session_date = parse_api_date(
+                session_wall_time_to_utc(
+                    sess.get("date"), self.static.get("schedule_time_zone")
+                )
+                or sess.get("date")
+            )
                 if session_date is not None and session_date > now:
                     continue
 
                 eligible.append(sess)
 
             eligible.sort(
-                key=lambda s: parse_api_date(s.get("date")) or now
+                key=lambda s: parse_api_date(s.get("date_utc") or s.get("date")) or now
             )
 
             records: list[dict[str, Any]] = []
@@ -637,6 +649,9 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "type": sess.get("type"),
                     "number": sess.get("number"),
                     "date": sess.get("date"),
+                    "date_utc": session_wall_time_to_utc(
+                        sess.get("date"), self.static.get("schedule_time_zone")
+                    ),
                     "status": sess.get("status"),
                 }
                 break
@@ -681,6 +696,21 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.static["schedule_categories"] = []
 
         schedule_event = self.static.get("next_event")
+        self.static["schedule_time_zone"] = None
+
+        if isinstance(schedule_event, dict):
+            broadcast_uuid = schedule_event.get("toad_api_uuid")
+            if broadcast_uuid:
+                try:
+                    broadcast_event = await self.api.async_get_broadcast_event(
+                        str(broadcast_uuid)
+                    )
+                except MotogpApiError as err:
+                    _LOGGER.debug("Broadcast event timezone lookup failed: %s", err)
+                else:
+                    self.static["schedule_time_zone"] = canonical_time_zone(
+                        broadcast_event.get("time_zone")
+                    )
 
         def _schedule_category_name(value: Any) -> str:
             raw = str(value or "").strip()
@@ -769,6 +799,9 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             "type": str(sess.get("type") or "").upper(),
                             "number": sess.get("number"),
                             "date": session_date,
+                            "date_utc": session_wall_time_to_utc(
+                                session_date, self.static.get("schedule_time_zone")
+                            ),
                             "status": sess.get("status") or "",
                             "circuit": sess.get("circuit") or "",
                             "track": condition.get("track") or "",
@@ -780,7 +813,12 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     )
 
             all_sessions.sort(
-                key=lambda s: parse_api_date(s.get("date")) or now
+                key=lambda s: parse_api_date(
+                    session_wall_time_to_utc(
+                        s.get("date"), self.static.get("schedule_time_zone")
+                    )
+                    or s.get("date")
+                ) or now
             )
 
             preferred = ["MotoGP", "Moto2", "Moto3", "MotoE"]
@@ -889,6 +927,9 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         "type": session_type,
                         "number": session_number,
                         "date": session_date,
+                        "date_utc": session_wall_time_to_utc(
+                            session_date, self.static.get("schedule_time_zone")
+                        ),
                         "status": sess.get("status") or "",
                         "circuit": sess.get("circuit") or "",
                         "track": condition.get("track") or "",
@@ -900,7 +941,7 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
 
             normalized_sessions.sort(
-                key=lambda s: parse_api_date(s.get("date")) or now
+                key=lambda s: parse_api_date(s.get("date_utc") or s.get("date")) or now
             )
 
             self.static["weekend_sessions"] = normalized_sessions
