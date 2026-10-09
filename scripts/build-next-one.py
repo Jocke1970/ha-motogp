@@ -5,8 +5,8 @@ import pathlib
 import sys
 
 EXPECTED = {
-    'ha-motogp-next-card.js': 'b3ec963fa5f734e1db38e4d4a2ccb9d6b93a8286',
-    'ha-motogp-next-split.js': '797594a2440a0818c2551ac2d3f0d502f163111b',
+    'ha-motogp-next-card.js': '260b536a2d57456d2f5aa21e414422e610738dcd',
+    'ha-motogp-next-split.js': '71ec9b66918ad5786d0de95c6b32be413e0a08d3',
     'ha-motogp-next-split-enhancements.js': '346df5046cc9301e426650cb36cb32449883414c',
     'ha-motogp-next-gap-trends.js': '7da9eb365964138c598691033248f8a5b7554b2c',
 }
@@ -82,7 +82,7 @@ def build(directory, destination):
         "        const schedule=race?.attributes||{};\n"
         "        const entries=Array.isArray(schedule.sessions_all)?schedule.sessions_all:\n"
         "          Array.isArray(schedule.sessions)?schedule.sessions:[];\n"
-        "        const pending=entries.map(s=>({pass:s,date:parseStart(s?.date)}))\n"
+        "        const pending=entries.map(s=>({pass:s,date:parseStart(s?.date,s?.date_utc)}))\n"
         "          .filter(x=>x.date && x.date<=now && x.date.toDateString()===now.toDateString() &&\n"
         "            now-x.date<2*60*60*1000 &&\n"
         "            !['FINISHED','CANCELLED','CANCELED'].includes(String(x.pass.status||'').toUpperCase()) &&\n"
