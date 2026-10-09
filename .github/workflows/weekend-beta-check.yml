@@ -1,0 +1,34 @@
+name: MotoGP weekend beta regression
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev, beta]
+    paths:
+      - 'custom_components/motogp_sensor/**'
+      - 'tests/test_weekend_regressions.py'
+      - '.github/workflows/weekend-beta-check.yml'
+  pull_request:
+    branches: [beta, main]
+    paths:
+      - 'custom_components/motogp_sensor/**'
+      - 'tests/test_weekend_regressions.py'
+      - '.github/workflows/weekend-beta-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  weekend-beta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile integration
+        run: python -m compileall -q custom_components/motogp_sensor
+      - name: Run weekend regressions
+        run: python tests/test_weekend_regressions.py
+      - name: Run archive regressions
+        run: python -m unittest discover -s tests -p 'test_session_lap_archive.py' -v

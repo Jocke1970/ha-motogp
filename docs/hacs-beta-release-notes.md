@@ -1,25 +1,30 @@
-# MotoGP Sensor (ha-motogp) v1.0.9.1b1 — first HACS beta
+# MotoGP Sensor 2026.10.0b1 — weekend beta
 
-**Release published:** 2026-09-20. **Operator installation reported:** 2026-09-20 evening. **Documentation reconciled:** 2026-09-21. This is a complete HACS-installable derivative of the locally audited customized `motogp_sensor` 1.0.9, not upstream's 1.0.10 or an official MotoGP release.
+**Beta target:** 2026-10-09. This prerelease keeps the existing `motogp_sensor` domain and is intended for live validation before any promotion to `main`.
 
-## Released contents (verified in repository/CI)
+## Fixes
 
-- Preserves `motogp_sensor` domain and entity names in the packaged implementation.
-- Adds a permanent backend per-session lap archive, gated on coordinator-exposed TV-delay-ready snapshots, writing JSON under `/config/motogp_data/` outside the HACS integration folder. Keeps event/category/session identities, deduplicates/corrects captured completed laps, atomically writes files and is designed to restore matching files after restart.
-- HACS manages the **complete integration**. No `install-session-archive-beta.py` overlay, upstream `1.0.10` patch or second MotoGP integration should be installed over it.
-- [Packaging and offline tests passed](https://github.com/Jocke1970/ha-motogp/actions/runs/35528926529). This does not prove actual on-host live archive creation or continuous lap coverage.
+- **Red Flag / Delayed live polling:** `R` and `D` now remain on the 5-second active-session polling cadence instead of dropping to the 300-second idle cadence. This fixes the reproduced Mandalika case where HA stayed on Red Flag for up to five minutes after the broadcast returned to green.
+- **Consistent active-session context:** the same `I/S/R/D` set is used by `session_in_progress`, live-condition refresh and adaptive polling.
+- **Timezone-aware weekend schedule:** backend obtains the event IANA timezone from the MotoGP Broadcast API, keeps the raw Results API wall-clock `date`, and adds a true `date_utc` for each normalized weekend session.
+- **Timezone metadata:** `sensor.motogp_next_race` exposes `time_zone`.
 
-## Operator observations (not to be confused with complete end-to-end validation)
+Regression coverage includes Mandalika **14:05 → 08:05 Europe/Stockholm** and the Red Flag/Delayed polling contract.
 
-- HACS update entity reported `installed_version=v1.0.9.1b1`, `in_progress=false`, `auto_update=false`; the HA Jinja diagnostics found 36 MotoGP-matching entities and static results/standings data.
-- Initially HACS showed `latest_version=ba28f5e` (`main` commit) and skipped that commit. The operator enabled the HACS repository's *Pre-release* switch and HACS then displayed the tagged beta in its download dialogue/repository badge. **A later `latest_version` attribute has not been captured**; do not claim its value was independently verified.
-- The weekend's last live session ended before this beta could be field-tested; live-only sensors being unknown afterward is not in itself a defect. TV delay was intentionally set to **0 seconds** by the operator.
-- The earlier captured `motogp-lap-observations-*.jsonl` file is **not** an archive JSON and is not automatically imported.
+## Separate Next dashboard update
 
-## Still excluded / unverified
+The HACS integration does **not** install `/config/www/ha-motogp-next.js`. A separately verified **Next 0.3.0-dev.5** bundle prefers the new `date_utc` field and renders browser-local time. Its Git blob is:
 
-No JSONL Replay importer; no safe historical read API or rider lap-history expanders; no independent Moto2/Moto3 championship backend; no Next UI update. Host file-hash parity, new live-session JSON creation, real session transitions, gaps, disk failures and restart recovery still await actual HA validation. No source deployment is implied by doc changes.
+`4c73aa7f22ec8876b77beede369d565e86e08e0d`
 
-**Migration/rollback:** Back up HA; remove the **old repository in HACS**, not the existing HA config entry in Devices & services; add `https://github.com/Jocke1970/ha-motogp` as a custom Integration and select exactly tagged prerelease `v1.0.9.1b1`. Restart HA once after replacing Python code. See the [complete installation guide](hacs-beta-installation.md) and [current project status](project-status.md). Preserve `/config/motogp_data` and observation files during recovery.
+Keep the existing Lovelace resource; replace only its JS file using the pinned installer. No second resource is required.
 
-Based on [Liionboy/motogp_sensor](https://github.com/Liionboy/motogp_sensor); not affiliated with MotoGP or its rights holders.
+## Validation boundary
+
+Dev CI is green, but this is still a beta:
+- confirm live `R → I/S` recovery on the actual HA host;
+- confirm timezone metadata/session `date_utc` from the current event;
+- inspect archive JSON after a qualifying session;
+- do not promote to `main` solely because CI passed.
+
+TV delay remains the operator's setting and is not changed by this release. Existing `/config/motogp_data` is preserved.
