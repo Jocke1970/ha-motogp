@@ -46,6 +46,22 @@ const live=(category,name,riders)=>({
   const push=x=>{states={...states,...x};overview.hass={states};timing.hass={states};};
   push({});
   assert.match(overview.view.innerHTML,/0\.3\.0-dev\.3/);
+
+  // Results API schedule times are circuit wall-clock values. When the backend
+  // supplies date_utc, the card must render the viewer-local time instead.
+  now=Date.parse('2026-10-09T07:55:00+02:00');
+  const indonesia=e('GRAND PRIX OF INDONESIA',{
+    date_start:'2026-10-09',date_end:'2026-10-11',time_zone:'Asia/Makassar',
+    sessions_all:[{id:'m2pr',category:'Moto2',name:'Practice',
+      date:'2026-10-09T14:05:00+00:00',date_utc:'2026-10-09T06:05:00+00:00',status:'NOT-STARTED'}]});
+  push({'sensor.motogp_next_race':indonesia,
+    'sensor.motogp_current_session':e('unknown'),
+    'sensor.motogp_session_status':e('unknown'),
+    'sensor.motogp_rider_positions':e('unknown')});
+  assert.match(overview.view.innerHTML,/08:05/,'Mandalika 14:05 becomes 08:05 in Europe\/Stockholm');
+  assert.doesNotMatch(overview.view.innerHTML,/14:05/,'circuit wall time must not leak into viewer-local schedule');
+  now=Date.parse('2026-09-19T13:45:00+02:00');
+  push({'sensor.motogp_next_race':race(),...live('Moto2','Q1',[1,2,3,4,5].map(rider))});
   assert.match(overview.view.innerHTML,/samlad testversion/);
   assert.doesNotMatch(overview.view.innerHTML,/testresurs/);
   assert.equal((timing.view.innerHTML.match(/Q2 ↑/g)||[]).length,4,'Moto2 Q1 4 riders marked');
