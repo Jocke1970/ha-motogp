@@ -17,6 +17,7 @@ from .const import (
     LIVE_SOURCE_PULSELIVE,
     OFFICIAL_LIVE_TIMING_URL,
     PULSELIVE_BASE_URL,
+    PULSELIVE_BROADCAST_EVENT_URL,
     PULSELIVE_CATEGORIES_URL,
     PULSELIVE_EVENTS_URL,
     PULSELIVE_EVENT_GRID_URL,
@@ -83,6 +84,15 @@ class MotogpApiClient:
         data = await self._request(f"{PULSELIVE_EVENTS_URL}?seasonUuid={season_uuid}")
         if not isinstance(data, list):
             raise MotogpApiError("Unexpected response shape from events endpoint")
+        return data
+
+    async def async_get_broadcast_event(self, event_uuid: str) -> dict[str, Any]:
+        """Return Broadcast API metadata for an event."""
+        data = await self._request(
+            PULSELIVE_BROADCAST_EVENT_URL.format(uuid=event_uuid)
+        )
+        if not isinstance(data, dict):
+            raise MotogpApiError("Unexpected response shape from broadcast event endpoint")
         return data
 
     async def async_get_sessions(
