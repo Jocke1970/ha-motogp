@@ -6,7 +6,7 @@ import pathlib
 import sys
 import tempfile
 
-BASE_BLOB = 'b15fb60af3a8140c191261f9ec0eac224b530d7b'
+BASE_BLOB = 'edb096876e3396577199b48266a9c81516050cad'
 UI_BLOB = 'c5c24ffb612ac6ffa52e877975f4fb44ae5f7610'
 BUILD = 'next-one-20261009-01'
 VERSION = '0.3.0-dev.5'
