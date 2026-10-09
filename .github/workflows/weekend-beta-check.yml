@@ -1,6 +1,7 @@
 name: MotoGP weekend beta regression
 
 on:
+  workflow_dispatch:
   push:
     branches: [dev, beta]
     paths:
