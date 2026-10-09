@@ -64,10 +64,11 @@ jobs:
           bash -n scripts/install-next-split-unified.sh
           staging="$(mktemp -d)"
           trap 'rm -rf -- "$staging"' EXIT
-          cp frontend/ha-motogp-next-card.js frontend/ha-motogp-next-split.js \
-             frontend/ha-motogp-next-split-enhancements.js "$staging/"
-          # The old split installer explicitly pins the old gap add-on. Test it
-          # with that historical source, NOT the updated one-file Next module.
+          # This installer is historical and hash-pinned. Feed it the historical
+          # source set it was designed for, not today's timezone-aware Next sources.
+          for file in ha-motogp-next-card.js ha-motogp-next-split.js ha-motogp-next-split-enhancements.js; do
+            git show 6cb79def28880310408b0354d24d711cafe08ab5:frontend/"$file" > "$staging/$file"
+          done
           git show af1ac68f2f8dab9a7d85088773d0877e225c4996:frontend/ha-motogp-next-gap-trends.js \
             > "$staging/ha-motogp-next-gap-trends.js"
           MOTOGP_WWW_DIR="$staging" bash scripts/install-next-split-unified.sh
