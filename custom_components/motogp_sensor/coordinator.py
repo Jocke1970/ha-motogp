@@ -614,18 +614,24 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     continue
 
                 session_date = parse_api_date(
-                session_wall_time_to_utc(
-                    sess.get("date"), self.static.get("schedule_time_zone")
+                    session_wall_time_to_utc(
+                        sess.get("date"), self.static.get("schedule_time_zone")
+                    )
+                    or sess.get("date")
                 )
-                or sess.get("date")
-            )
                 if session_date is not None and session_date > now:
                     continue
 
                 eligible.append(sess)
 
             eligible.sort(
-                key=lambda s: parse_api_date(s.get("date_utc") or s.get("date")) or now
+                key=lambda s: parse_api_date(
+                    session_wall_time_to_utc(
+                        s.get("date"), self.static.get("schedule_time_zone")
+                    )
+                    or s.get("date")
+                )
+                or now
             )
 
             records: list[dict[str, Any]] = []
