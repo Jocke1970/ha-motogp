@@ -5,7 +5,7 @@ set -euo pipefail
 
 DIR="${MOTOGP_WWW_DIR:-/config/www}"
 TARGET="$DIR/ha-motogp-next.js"
-SOURCE_COMMIT=b7dbc1a542d1863004602f37c32e887d13c006d6
+SOURCE_COMMIT=246b455e3d0aa2baf2e373a35993b864369cda3d
 OLD_BLOB=b15fb60af3a8140c191261f9ec0eac224b530d7b
 EXPECTED_BLOB=4c73aa7f22ec8876b77beede369d565e86e08e0d
 URL="https://raw.githubusercontent.com/Jocke1970/ha-motogp/$SOURCE_COMMIT/dist/ha-motogp-next.js"
