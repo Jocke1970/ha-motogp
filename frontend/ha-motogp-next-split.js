@@ -22,9 +22,13 @@
   const safeColor = value => /^#?[0-9a-f]{6}$/i.test(String(value || '')) ? `#${String(value).replace('#', '')}` : '#94a3b8';
   const numberText = value => positive(value) === null ? '—' : String(value);
   const lapText = value => !valid(value) || /^0+(?:[.:']0+)?$/.test(String(value).trim()) ? '—' : String(value);
-  // The source marks local schedule wall times with +00:00. Match dev.4's wall-clock
-  // convention instead of parsing the suffix as a true UTC timestamp.
-  function parseStart(raw) {
+  // Prefer backend-normalized UTC. Keep the legacy circuit-wall-time parser
+  // only as a fallback when the backend could not resolve an event timezone.
+  function parseStart(raw, utc) {
+    if (valid(utc)) {
+      const exact = new Date(String(utc));
+      if (!Number.isNaN(exact.getTime())) return exact;
+    }
     const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(raw || ''));
     if (!m) return null;
     const date = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]);
@@ -38,7 +42,7 @@
     const source = Array.isArray(a.sessions_all) ? a.sessions_all : Array.isArray(a.sessions) ? a.sessions : [];
     const start = String(a.date_start || '').slice(0, 10), end = String(a.date_end || '').slice(0, 10);
     return source.map(pass => {
-      const date = parseStart(pass?.date);
+      const date = parseStart(pass?.date, pass?.date_utc);
       return date && pass ? {date, pass, category:category(pass.category || 'MotoGP'),
         name:sessionName(pass.name || pass.type || ''),
         day:`${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`,
