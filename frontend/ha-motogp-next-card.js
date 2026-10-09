@@ -30,8 +30,15 @@
   const canon = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const pad = n => String(n).padStart(2, '0');
   const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  // Preserve reported event wall time; source currently marks wall-clock schedule with +00:00.
-  function parseWall(raw) {
+  // Prefer the backend-normalized UTC timestamp. Fall back to the legacy
+  // circuit wall-clock value if timezone metadata could not be resolved.
+  function parseWall(raw, utc) {
+    if (valid(utc)) {
+      const exact = new Date(String(utc));
+      if (!Number.isNaN(exact.getTime())) {
+        return {date:exact, day:dayKey(exact), time:`${pad(exact.getHours())}:${pad(exact.getMinutes())}`};
+      }
+    }
     const m = String(raw || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
     if (!m) return null;
     const date = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]);
@@ -53,8 +60,8 @@
     const a = race?.attributes || {};
     const source = Array.isArray(a.sessions_all) ? a.sessions_all : Array.isArray(a.sessions) ? a.sessions : [];
     const start = String(a.date_start || '').slice(0,10), end = String(a.date_end || '').slice(0,10);
-    return source.filter(s => s && parseWall(s.date))
-      .map(s => ({...s, _wall:parseWall(s.date), _cat:cat(s.category || 'MotoGP'), _name:sess(s.name || s.type)}))
+    return source.filter(s => s && parseWall(s.date, s.date_utc))
+      .map(s => ({...s, _wall:parseWall(s.date, s.date_utc), _cat:cat(s.category || 'MotoGP'), _name:sess(s.name || s.type)}))
       .filter(s => (!start || s._wall.day >= start) && (!end || s._wall.day <= end))
       .sort((a,b) => a._wall.date - b._wall.date);
   }
