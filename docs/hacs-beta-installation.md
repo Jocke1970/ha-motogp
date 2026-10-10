@@ -1,6 +1,6 @@
-# HACS beta installation, upgrade and rollback — 2026.10.0b2
+# HACS beta installation, upgrade and rollback — 2026.10.0b3
 
-**Do not use 2026.10.0b1.** It contains an import-time `NameError` in the Broadcast URL constant and cannot load the integration. Upgrade directly to **2026.10.0b2**.
+**Do not use 2026.10.0b1.** It contains an import-time `NameError` in the Broadcast URL constant and cannot load the integration. Upgrade directly to **2026.10.0b3**.
 
 This is an independent derived integration based on Liionboy/motogp_sensor, not an official MotoGP release. Domain remains `motogp_sensor`.
 
@@ -8,8 +8,8 @@ This is an independent derived integration based on Liionboy/motogp_sensor, not 
 
 1. Make/confirm a Home Assistant backup. Preserve `/config/motogp_data/` and the independent `/config/www/ha-motogp-next.js`.
 2. Keep the existing MotoGP integration under **Settings → Devices & services**. Do **not** delete or re-add it.
-3. In HACS, keep **Pre-release** enabled for the ha-motogp repository and select the explicit prerelease **2026.10.0b2**.
-4. Confirm the downloaded manifest reports `2026.10.0b2`.
+3. In HACS, keep **Pre-release** enabled for the ha-motogp repository and select the explicit prerelease **2026.10.0b3**.
+4. Confirm the downloaded manifest reports `2026.10.0b3`.
 5. Restart Home Assistant once after the Python integration update.
 6. Check existing MotoGP entities and HA logs before touching the dashboard.
 
