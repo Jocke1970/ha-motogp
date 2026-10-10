@@ -1,4 +1,6 @@
-# MotoGP Sensor 2026.10.0b2 — weekend beta
+# MotoGP Sensor 2026.10.0b3 — weekend beta
+
+**Fixes a five-minute blind spot between finished and upcoming sessions.** Saturday archive evidence showed Q1→Q2 handoffs exactly ~300 seconds apart and Sprint archiving beginning 5m43s after the scheduled start. b3 keeps 300-second idle polling normally, but switches to 30-second standby polling from 15 minutes before until 30 minutes after a normalized scheduled session start.
 
 **Supersedes broken 2026.10.0b1.** b1 fails during Home Assistant import because the Broadcast event URL constant eagerly evaluates an undefined `uuid` name. b2 fixes that constant and adds an executable import-time release regression.
 
