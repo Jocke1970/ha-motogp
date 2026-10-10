@@ -1,4 +1,4 @@
-# MotoGP Sensor 2026.10.0b3 — weekend beta
+# MotoGP Sensor 2026.10.0b4 — weekend beta
 
 **Fixes a five-minute blind spot between finished and upcoming sessions.** Saturday archive evidence showed Q1→Q2 handoffs exactly ~300 seconds apart and Sprint archiving beginning 5m43s after the scheduled start. b3 keeps 300-second idle polling normally, but switches to 30-second standby polling from 15 minutes before until 30 minutes after a normalized scheduled session start.
 
@@ -32,3 +32,8 @@ Dev CI is green, but this is still a beta:
 - do not promote to `main` solely because CI passed.
 
 TV delay remains the operator's setting and is not changed by this release. Existing `/config/motogp_data` is preserved.
+
+
+## 2026.10.0b4
+
+Refines session-start polling from the broad b3 standby window. The coordinator now stays at 300 seconds until T-5 minutes, switches to 15-second polling from T-5 through T+10 while the feed is not active, keeps a 30-second delayed-start fallback through T+30, and uses 5 seconds whenever I/S/R/D is reported. This targets the observed lap-1 losses while reducing unnecessary API traffic.

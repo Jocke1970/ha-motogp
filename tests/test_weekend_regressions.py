@@ -99,24 +99,53 @@ def check_near_session_standby_polling() -> None:
     schedule_time = load_schedule_time()
     sessions = [{"date_utc": "2026-10-10T07:00:00+00:00"}]
 
-    assert schedule_time.scheduled_session_start_near(
-        sessions, datetime(2026, 10, 10, 6, 50, tzinfo=timezone.utc)
+    # Still ordinary 300-second idle polling six minutes before start.
+    assert not schedule_time.scheduled_session_start_near(
+        sessions,
+        datetime(2026, 10, 10, 6, 54, tzinfo=timezone.utc),
+        before=timedelta(minutes=5),
+        after=timedelta(minutes=10),
     )
+
+    # Enter 15-second prestart cadence inside T-5m.
     assert schedule_time.scheduled_session_start_near(
-        sessions, datetime(2026, 10, 10, 7, 5, 43, tzinfo=timezone.utc)
+        sessions,
+        datetime(2026, 10, 10, 6, 55, 1, tzinfo=timezone.utc),
+        before=timedelta(minutes=5),
+        after=timedelta(minutes=10),
+    )
+
+    # Still dense immediately after scheduled start if the feed has not
+    # transitioned to an active status yet.
+    assert schedule_time.scheduled_session_start_near(
+        sessions,
+        datetime(2026, 10, 10, 7, 9, 59, tzinfo=timezone.utc),
+        before=timedelta(minutes=5),
+        after=timedelta(minutes=10),
+    )
+
+    # 30-second fallback remains available for a delayed/non-transitioning feed.
+    assert schedule_time.scheduled_session_start_near(
+        sessions,
+        datetime(2026, 10, 10, 7, 29, 59, tzinfo=timezone.utc),
+        before=timedelta(minutes=0),
+        after=timedelta(minutes=30),
     )
     assert not schedule_time.scheduled_session_start_near(
-        sessions, datetime(2026, 10, 10, 8, 0, tzinfo=timezone.utc)
+        sessions,
+        datetime(2026, 10, 10, 7, 30, 1, tzinfo=timezone.utc),
+        before=timedelta(minutes=0),
+        after=timedelta(minutes=30),
     )
 
     source = (INTEGRATION / "coordinator.py").read_text(encoding="utf-8")
-    assert "scheduled_session_start_near(" in source
+    assert "self.update_interval = LIVE_POLLING_PRESTART" in source
     assert "self.update_interval = LIVE_POLLING_STANDBY" in source
 
 def check_beta_version() -> None:
     manifest = json.loads((INTEGRATION / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["domain"] == "motogp_sensor"
-    assert manifest["version"] == "2026.10.0b3"
+    assert manifest["version"] == "2026.10.0b4"
 
 
 if __name__ == "__main__":
@@ -125,4 +154,4 @@ if __name__ == "__main__":
     check_broadcast_url_template_contract()
     check_near_session_standby_polling()
     check_beta_version()
-    print("Weekend regressions OK: R/D polling, Mandalika timezone, near-session standby, broadcast URL template, 2026.10.0b3")
+    print("Weekend regressions OK: R/D polling, Mandalika timezone, tiered session-start polling, broadcast URL template, 2026.10.0b4")

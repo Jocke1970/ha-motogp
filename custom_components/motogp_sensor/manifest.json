@@ -17,5 +17,5 @@
   "requirements": [
     "python-dateutil>=2.8"
   ],
-  "version": "2026.10.0b3"
+  "version": "2026.10.0b4"
 }

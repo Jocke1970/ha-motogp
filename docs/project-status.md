@@ -2,7 +2,7 @@
 
 ## Current release track
 
-The project is on the strict **dev → beta → main** path. The October weekend candidate is **2026.10.0b3**. `main` is intentionally unchanged while the candidate is field-tested.
+The project is on the strict **dev → beta → main** path. The October weekend candidate is **2026.10.0b4**. `main` is intentionally unchanged while the candidate is field-tested.
 
 The integration domain remains `motogp_sensor`; preserve the existing Home Assistant config entry. The HACS backend and the independent Next Lovelace JS are separate delivery surfaces.
 
@@ -24,9 +24,9 @@ Observed on the user's HA:
 
 `NameError: name 'uuid' is not defined`
 
-Root cause: `PULSELIVE_BROADCAST_EVENT_URL` was declared with an f-string that tried to evaluate `{uuid}` during module import. `2026.10.0b3` preserves the placeholder literally until `.format(uuid=...)` is called and adds an executable import-time regression test so this class of error is caught before release.
+Root cause: `PULSELIVE_BROADCAST_EVENT_URL` was declared with an f-string that tried to evaluate `{uuid}` during module import. `2026.10.0b4` preserves the placeholder literally until `.format(uuid=...)` is called and adds an executable import-time regression test so this class of error is caught before release.
 
-## 2026.10.0b3 fixes
+## 2026.10.0b4 fixes
 
 ### Live-session polling
 
@@ -60,7 +60,7 @@ Green dev gates on 2026-10-09:
 
 ## Still to verify on the Home Assistant host
 
-- Install HACS prerelease **2026.10.0b3** and restart HA once.
+- Install HACS prerelease **2026.10.0b4** and restart HA once.
 - During a live session, confirm Red Flag/Delayed no longer causes a 300-second update gap.
 - Confirm `sensor.motogp_next_race` exposes the event `time_zone` and session entries have `date_utc`.
 - Install/update the separate Next dev.5 JS and confirm Mandalika times display in Swedish local time.
@@ -72,4 +72,8 @@ No replay importer or safe historical read API is included. The old observation 
 
 Seven archive files were audited after qualifying and Sprint. Five were complete with no internal lap holes. MotoGP Q1 and Sprint were marked partial only because lap 1 was missing for every rider; all later laps were contiguous. Three Q1→Q2 handoffs occurred almost exactly 300 seconds apart, matching LIVE_POLLING_IDLE. Sprint officially started at 07:00 UTC and its archive first_seen_at was 07:05:43 UTC, so every rider's lap 1 was already gone when archiving resumed.
 
-2026.10.0b3 adds a 30-second standby cadence around normalized session starts (-15/+30 minutes), while retaining 5 seconds for active/R/D and 300 seconds elsewhere.
+2026.10.0b4 adds a 30-second standby cadence around normalized session starts (-15/+30 minutes), while retaining 5 seconds for active/R/D and 300 seconds elsewhere.
+
+### b4 polling refinement
+
+Saturday FP2 and qualifying archives confirmed that the remaining partial files clustered at session start. Moto3 FP2 was partial primarily because lap 1 was absent, while Moto2 FP2 and MotoGP FP2 were complete. 2026.10.0b4 replaces the broad b3 standby window with tiered polling: 300s normally; 15s from T-5m through T+10m when not active; 30s from T+10m through T+30m as delayed-start fallback; 5s for I/S/R/D.

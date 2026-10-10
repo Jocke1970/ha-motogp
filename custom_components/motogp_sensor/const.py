@@ -45,9 +45,10 @@ RACE_WEEK_START_OPTIONS = [
 ]
 
 # ── Polling intervals ────────────────────────────────────────────────────────
-LIVE_POLLING_ACTIVE = timedelta(seconds=5)   # session in progress
-LIVE_POLLING_STANDBY = timedelta(seconds=30)  # near scheduled session start
-LIVE_POLLING_IDLE = timedelta(seconds=300)    # no active session
+LIVE_POLLING_ACTIVE = timedelta(seconds=5)    # session in progress / R / D
+LIVE_POLLING_PRESTART = timedelta(seconds=15)  # T-5m through T+10m
+LIVE_POLLING_STANDBY = timedelta(seconds=30)   # T+10m through T+30m fallback
+LIVE_POLLING_IDLE = timedelta(seconds=300)     # no active / near session
 STATIC_REFRESH_INTERVAL = timedelta(hours=6)  # standings/calendar refresh
 GRID_RECORDS_REFRESH_INTERVAL = timedelta(minutes=5)  # grid + records
 WEATHER_REFRESH_INTERVAL = timedelta(seconds=60)  # live weekend conditions
