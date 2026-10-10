@@ -33,6 +33,7 @@ from .const import (
     EVENT_SESSION_RED_FLAG,
     LIVE_POLLING_ACTIVE,
     LIVE_POLLING_IDLE,
+    LIVE_POLLING_PRESTART,
     LIVE_POLLING_STANDBY,
     LIVE_SOURCE_AUTO,
     LIVE_SOURCE_OFFICIAL,
@@ -336,16 +337,31 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             and raw_live is not None
             and raw_live.get("session_status_id") in LIVE_SESSION_STATUS_IDS
         )
-        standby = (
+        prestart = (
             live_online
             and not active
             and scheduled_session_start_near(
                 self.static.get("weekend_sessions_all"),
                 now,
+                before=timedelta(minutes=5),
+                after=timedelta(minutes=10),
+            )
+        )
+        standby = (
+            live_online
+            and not active
+            and not prestart
+            and scheduled_session_start_near(
+                self.static.get("weekend_sessions_all"),
+                now,
+                before=timedelta(minutes=0),
+                after=timedelta(minutes=30),
             )
         )
         if active:
             self.update_interval = LIVE_POLLING_ACTIVE
+        elif prestart:
+            self.update_interval = LIVE_POLLING_PRESTART
         elif standby:
             self.update_interval = LIVE_POLLING_STANDBY
         else:
