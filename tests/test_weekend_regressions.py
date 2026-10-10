@@ -7,7 +7,7 @@ import importlib.util
 import json
 import sys
 import types
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -95,15 +95,34 @@ def check_broadcast_url_template_contract() -> None:
             sys.modules["homeassistant.const"] = previous_const
 
 
+def check_near_session_standby_polling() -> None:
+    schedule_time = load_schedule_time()
+    sessions = [{"date_utc": "2026-10-10T07:00:00+00:00"}]
+
+    assert schedule_time.scheduled_session_start_near(
+        sessions, datetime(2026, 10, 10, 6, 50, tzinfo=timezone.utc)
+    )
+    assert schedule_time.scheduled_session_start_near(
+        sessions, datetime(2026, 10, 10, 7, 5, 43, tzinfo=timezone.utc)
+    )
+    assert not schedule_time.scheduled_session_start_near(
+        sessions, datetime(2026, 10, 10, 8, 0, tzinfo=timezone.utc)
+    )
+
+    source = (INTEGRATION / "coordinator.py").read_text(encoding="utf-8")
+    assert "scheduled_session_start_near(" in source
+    assert "self.update_interval = LIVE_POLLING_STANDBY" in source
+
 def check_beta_version() -> None:
     manifest = json.loads((INTEGRATION / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["domain"] == "motogp_sensor"
-    assert manifest["version"] == "2026.10.0b2"
+    assert manifest["version"] == "2026.10.0b3"
 
 
 if __name__ == "__main__":
     check_red_flag_polling_contract()
     check_mandalika_timezone()
     check_broadcast_url_template_contract()
+    check_near_session_standby_polling()
     check_beta_version()
-    print("Weekend regressions OK: R/D polling, Mandalika timezone, broadcast URL template, 2026.10.0b2")
+    print("Weekend regressions OK: R/D polling, Mandalika timezone, near-session standby, broadcast URL template, 2026.10.0b3")

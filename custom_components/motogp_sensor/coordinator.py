@@ -14,7 +14,11 @@ from homeassistant.util import dt as dt_util
 
 from .api import MotogpApiClient, MotogpApiError
 from .session_lap_archive import ArchiveError, SessionLapArchive
-from .schedule_time import canonical_time_zone, session_wall_time_to_utc
+from .schedule_time import (
+    canonical_time_zone,
+    scheduled_session_start_near,
+    session_wall_time_to_utc,
+)
 from .const import (
     DOMAIN,
     EVENT_LIVE_TIMING_OFFLINE,
@@ -29,6 +33,7 @@ from .const import (
     EVENT_SESSION_RED_FLAG,
     LIVE_POLLING_ACTIVE,
     LIVE_POLLING_IDLE,
+    LIVE_POLLING_STANDBY,
     LIVE_SOURCE_AUTO,
     LIVE_SOURCE_OFFICIAL,
     LIVE_SOURCE_PULSELIVE,
@@ -331,7 +336,20 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             and raw_live is not None
             and raw_live.get("session_status_id") in LIVE_SESSION_STATUS_IDS
         )
-        self.update_interval = LIVE_POLLING_ACTIVE if active else LIVE_POLLING_IDLE
+        standby = (
+            live_online
+            and not active
+            and scheduled_session_start_near(
+                self.static.get("weekend_sessions_all"),
+                now,
+            )
+        )
+        if active:
+            self.update_interval = LIVE_POLLING_ACTIVE
+        elif standby:
+            self.update_interval = LIVE_POLLING_STANDBY
+        else:
+            self.update_interval = LIVE_POLLING_IDLE
 
         return {"live": live, "live_online": live_online}
 
