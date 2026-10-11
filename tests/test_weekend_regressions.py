@@ -142,10 +142,24 @@ def check_near_session_standby_polling() -> None:
     assert "self.update_interval = LIVE_POLLING_PRESTART" in source
     assert "self.update_interval = LIVE_POLLING_STANDBY" in source
 
+
+def check_live_poll_freshness_contract() -> None:
+    coordinator = (INTEGRATION / "coordinator.py").read_text(encoding="utf-8")
+    sensor = (INTEGRATION / "sensor.py").read_text(encoding="utf-8")
+
+    assert "_last_live_poll_at = dt_util.utcnow()" in coordinator
+    assert "def live_poll_at(self) -> datetime | None:" in coordinator
+    assert '"live_poll_at": (' in sensor
+    assert '"live_poll_interval_seconds": int(' in sensor
+    assert "last_updated" not in sensor, (
+        "Feed freshness belongs to successful API polls, not HA state timestamps"
+    )
+
+
 def check_beta_version() -> None:
     manifest = json.loads((INTEGRATION / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["domain"] == "motogp_sensor"
-    assert manifest["version"] == "2026.10.0b4"
+    assert manifest["version"] == "2026.10.0b5"
 
 
 if __name__ == "__main__":
@@ -153,5 +167,6 @@ if __name__ == "__main__":
     check_mandalika_timezone()
     check_broadcast_url_template_contract()
     check_near_session_standby_polling()
+    check_live_poll_freshness_contract()
     check_beta_version()
-    print("Weekend regressions OK: R/D polling, Mandalika timezone, tiered session-start polling, broadcast URL template, 2026.10.0b4")
+    print("Weekend regressions OK: R/D polling, Mandalika timezone, tiered session-start polling, poll freshness metadata, broadcast URL template, 2026.10.0b5")
