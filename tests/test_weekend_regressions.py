@@ -149,8 +149,13 @@ def check_live_poll_freshness_contract() -> None:
 
     assert "_last_live_poll_at = dt_util.utcnow()" in coordinator
     assert "def live_poll_at(self) -> datetime | None:" in coordinator
-    assert '"live_poll_at": (' in sensor
-    assert '"live_poll_interval_seconds": int(' in sensor
+    assert 'attrs["live_poll_at"] = (' in sensor
+    assert 'attrs["live_poll_interval_seconds"] = int(' in sensor
+    rider_block = sensor.split("elif key == SENSOR_RIDER_POSITIONS:", 1)[1]
+    before_rider = sensor.split("elif key == SENSOR_RIDER_POSITIONS:", 1)[0]
+    assert "live_poll_at" not in before_rider, (
+        "Poll freshness must not churn every live sensor/Recorder state"
+    )
     assert "last_updated" not in sensor, (
         "Feed freshness belongs to successful API polls, not HA state timestamps"
     )
