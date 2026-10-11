@@ -185,7 +185,7 @@ class MotogpSensor(MotogpEntity, SensorEntity):
             if not live:
                 return None
             _update_lap_history(self.coordinator, live)
-            return _live_attributes(self._key, live)
+            return _live_attributes(self._key, live, self.coordinator)
         return _static_attributes(self._key, self.coordinator)
 
 
@@ -378,7 +378,11 @@ def _live_value(key: str, live: dict[str, Any]) -> Any:
     return None
 
 
-def _live_attributes(key: str, live: dict[str, Any]) -> dict[str, Any]:
+def _live_attributes(
+    key: str,
+    live: dict[str, Any],
+    coordinator: MotogpCoordinator,
+) -> dict[str, Any]:
     """Compute extra attributes for a live sensor."""
     riders = _riders_sorted(live)
     attrs: dict[str, Any] = {
@@ -393,6 +397,14 @@ def _live_attributes(key: str, live: dict[str, Any]) -> dict[str, Any]:
             "tv_delay_effective_seconds", 0
         ),
         "tv_delay_ready": live.get("tv_delay_ready", True),
+        "live_poll_at": (
+            coordinator.live_poll_at.isoformat()
+            if coordinator.live_poll_at is not None
+            else None
+        ),
+        "live_poll_interval_seconds": int(
+            coordinator.update_interval.total_seconds()
+        ),
     }
     if key == SENSOR_SESSION_STATUS:
         attrs["session_name"] = live.get("session_name")
