@@ -92,6 +92,7 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_static_refresh: datetime | None = None
         self._last_grid_records_refresh: datetime | None = None
         self._last_weather_refresh: datetime | None = None
+        self._last_live_poll_at: datetime | None = None
         self._prev_live_online: bool | None = None
         self._prev_session_status: str | None = None
         self._prev_race_week: bool | None = None
@@ -145,6 +146,11 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def race_week(self) -> bool:
         """True when we are inside the current race week window."""
         return self._race_week
+
+    @property
+    def live_poll_at(self) -> datetime | None:
+        """Timestamp of the most recent successful live timing poll."""
+        return self._last_live_poll_at
 
     def _fire_event(self, event_type: str) -> None:
         """Fire a MotoGP device event on the HA bus."""
@@ -256,6 +262,7 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             payload = await self.api.async_get_live_timing(self.live_source)
             live = parse_live_timing(payload)
             live_online = True
+            self._last_live_poll_at = dt_util.utcnow()
         except MotogpApiError as err:
             _LOGGER.debug("Live timing failed on %s: %s", self.live_source, err)
             if self.live_source in (LIVE_SOURCE_AUTO, LIVE_SOURCE_OFFICIAL):
@@ -263,6 +270,7 @@ class MotogpCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     payload = await self.api.async_get_live_timing(LIVE_SOURCE_PULSELIVE)
                     live = parse_live_timing(payload)
                     live_online = True
+                    self._last_live_poll_at = dt_util.utcnow()
                 except MotogpApiError as err2:
                     _LOGGER.debug("Live timing fallback failed: %s", err2)
 
