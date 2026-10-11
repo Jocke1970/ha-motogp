@@ -5,9 +5,9 @@ set -euo pipefail
 
 DIR="${MOTOGP_WWW_DIR:-/config/www}"
 TARGET="$DIR/ha-motogp-next.js"
-SOURCE_COMMIT=246b455e3d0aa2baf2e373a35993b864369cda3d
-OLD_BLOB=1f99efb65c9ab8087b51079b25ce283324ebfe8d
-EXPECTED_BLOB=4c73aa7f22ec8876b77beede369d565e86e08e0d
+SOURCE_COMMIT=acd520a12390877ef5e18a70044f0ac029004f08
+OLD_BLOB=4c73aa7f22ec8876b77beede369d565e86e08e0d
+EXPECTED_BLOB=4d4d45762b23d77df749a5ca20a676d5fda3c2b7
 URL="https://raw.githubusercontent.com/Jocke1970/ha-motogp/$SOURCE_COMMIT/dist/ha-motogp-next.js"
 
 stop() { printf 'STOP: %s\n' "$*" >&2; exit 1; }
@@ -83,7 +83,7 @@ cat <<'INFO'
 Nästa steg: Behåll EXAKT SAMMA befintliga Next-resurs i Home Assistant:
   /local/ha-motogp-next.js
 Skapa INTE en ny resurs och ändra INTE YAML-korttyper.
-Ladda om testvyn med Ctrl+Shift+R och kontrollera versionsraden 0.3.0-dev.5.
+Ladda om testvyn med Ctrl+Shift+R och kontrollera versionsraden 0.3.0-dev.6.
 Låt originalets ha-motogp-card.js/HACS-resurser och gamla JS-filer vara orörda.
 Ingen Home Assistant-omstart behövs.
 INFO
