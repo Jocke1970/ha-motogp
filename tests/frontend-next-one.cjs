@@ -8,10 +8,23 @@ class Clock extends Date {constructor(...a){super(...(a.length?a:[now]));}static
 const timers=[];const registry=new Map([['ha-motogp-card',class Original{}]]);
 class Element {
   attachShadow(){
-    this.view={innerHTML:''};this.liveNode={textContent:''};
+    this.view={innerHTML:''};this.liveNode={textContent:''};this.feedClasses=new Set();
+    this.feedBadge={
+      textContent:'',
+      getAttribute:name=>{
+        const match=this.view.innerHTML.match(new RegExp(name+'="([^"]*)"'));
+        return match?match[1]:null;
+      },
+      classList:{
+        add:(...names)=>names.forEach(name=>this.feedClasses.add(name)),
+        remove:(...names)=>names.forEach(name=>this.feedClasses.delete(name)),
+        toggle:(name,on)=>on?this.feedClasses.add(name):this.feedClasses.delete(name)
+      }
+    };
     this.shadowRoot={innerHTML:'',addEventListener(){},contains(){return true;},
       appendChild(){},getElementById:()=>this.view,
-      querySelector:(sel)=>sel==='[data-live-remaining]'&&this.view.innerHTML.includes('data-live-remaining')?this.liveNode:null,
+      querySelector:(sel)=>sel==='[data-live-remaining]'&&this.view.innerHTML.includes('data-live-remaining')?this.liveNode:
+        sel==='[data-motogp-feed-age]'&&this.view.innerHTML.includes('data-motogp-feed-age')?this.feedBadge:null,
       querySelectorAll:()=>[]};return this.shadowRoot;
   }
 }
@@ -75,15 +88,24 @@ const live=(category,name,riders)=>({
   assert.equal(timing.liveNode.textContent,'5:00 kvar','new sensor value resyncs');
   const fast={...rider(1),last_lap:3,best_lap_number:3,best_lap_time:"1'42.123",is_session_fastest:true};
   const personal={...rider(2),last_lap:3,best_lap_number:3,best_lap_time:"1'42.456",last_lap_time:"1'42.456",is_session_fastest:false};
+  const pollAt=new Date(now-3000).toISOString();
   const pos=e('riders',{...meta('Moto2','Q1'),tv_delay_seconds:30,tv_delay_ready:true,
+    live_poll_at:pollAt,live_poll_interval_seconds:5,
     session_fastest_lap:"1'42.123",session_fastest_rider:'RIDER1',session_fastest_rider_number:31,
     session_fastest_lap_number:3,lap_history_partial:false,riders:[fast,personal,rider(3),rider(4),rider(5)]});
-  pos.last_updated=new Date(now).toISOString();
+  pos.last_updated=new Date(now-20*60*1000).toISOString();
   push({'sensor.motogp_rider_positions':pos});
   assert.match(timing.view.innerHTML,/Sessionens snabbaste varv:[\s\S]*RIDER1[\s\S]*1&#39;42\.123/);
   assert.match(timing.view.innerHTML,/nt-fast-lap/,'session record also highlights latest lap');
   assert.match(timing.view.innerHTML,/nt-personal-best/,'independent PB for another rider');
-  assert.match(timing.view.innerHTML,/data-motogp-feed-age="\d+"/,'freshness chip uses HA sensor timestamp');
+  assert.match(timing.view.innerHTML,new RegExp('data-motogp-feed-age="'+Date.parse(pollAt)+'"'),
+    'freshness chip uses backend successful-poll timestamp');
+  assert.doesNotMatch(timing.view.innerHTML,new RegExp(String(Date.parse(pos.last_updated))),
+    'stale HA last_updated must not drive feed freshness');
+  const ageTick=timers.find(t=>t.ms===1000&&t.fn.toString().includes('refreshAge'));
+  assert.ok(ageTick,'feed freshness timer');ageTick.fn();
+  assert.match(timing.feedBadge.textContent,/Feed OK · 3 s/);
+  assert.ok(timing.feedClasses.has('ok'),'fresh successful poll is healthy');
   const slow={...fast,last_lap:4,last_lap_time:"1'43.000"};
   push({'sensor.motogp_rider_positions':{...pos,attributes:{...pos.attributes,riders:[slow,personal,rider(3),rider(4),rider(5)]}}});
   assert.match(timing.view.innerHTML,/Sessionens snabbaste varv:[\s\S]*1&#39;42\.123/,
@@ -122,5 +144,5 @@ const live=(category,name,riders)=>({
   assert.doesNotMatch(timing.view.innerHTML,/Q2 ↑|RIDER1|nt-feed-age/,'spoiler must hide rider data and chip');
   timing.disconnectedCallback();overview.disconnectedCallback();
   assert.ok(!bundle.includes('hass.callService('),'one file remains read-only');
-  console.log('PASS: one resource, next-start, Q1, local clock, PB, persistent session record, freshness, spoiler');
+  console.log('PASS: one resource, next-start, Q1, local clock, PB, persistent session record, poll freshness, spoiler');
 })().catch(err=>{console.error(err);process.exitCode=1;});
