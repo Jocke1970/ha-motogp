@@ -77,3 +77,9 @@ Seven archive files were audited after qualifying and Sprint. Five were complete
 ### b4 polling refinement
 
 Saturday FP2 and qualifying archives confirmed that the remaining partial files clustered at session start. Moto3 FP2 was partial primarily because lap 1 was absent, while Moto2 FP2 and MotoGP FP2 were complete. 2026.10.0b4 replaces the broad b3 standby window with tiered polling: 300s normally; 15s from T-5m through T+10m when not active; 30s from T+10m through T+30m as delayed-start fallback; 5s for I/S/R/D.
+
+### Dev-only feed freshness correction — 2026-10-11
+
+After Sunday live observation, the Next freshness badge was proven to use Home Assistant entity `last_updated`, which can remain old even while the integration polls the live API successfully. Dev candidate `2026.10.0b5` now records `live_poll_at` on every successful primary or fallback live-timing request and exposes it, together with `live_poll_interval_seconds`, on live sensor attributes. Next `0.3.0-dev.6` uses only this backend poll metadata for feed health: healthy, delayed, or missing thresholds scale from the expected polling interval. Regression coverage explicitly verifies that an old HA state timestamp cannot trigger a false stale-feed warning when `live_poll_at` is fresh.
+
+This is **dev only**. Do not promote to beta/main until the complete Indonesia weekend archive/live evidence has been reviewed.
