@@ -397,14 +397,6 @@ def _live_attributes(
             "tv_delay_effective_seconds", 0
         ),
         "tv_delay_ready": live.get("tv_delay_ready", True),
-        "live_poll_at": (
-            coordinator.live_poll_at.isoformat()
-            if coordinator.live_poll_at is not None
-            else None
-        ),
-        "live_poll_interval_seconds": int(
-            coordinator.update_interval.total_seconds()
-        ),
     }
     if key == SENSOR_SESSION_STATUS:
         attrs["session_name"] = live.get("session_name")
@@ -415,6 +407,17 @@ def _live_attributes(
     elif key == SENSOR_RIDER_POSITIONS:
         attrs["riders"] = riders
         attrs["count"] = len(riders)
+        # Feed-health metadata is intentionally exposed on this one entity only.
+        # Next reads rider_positions, and limiting the changing timestamp here
+        # avoids forcing every live sensor into a new HA/Recorder state each poll.
+        attrs["live_poll_at"] = (
+            coordinator.live_poll_at.isoformat()
+            if coordinator.live_poll_at is not None
+            else None
+        )
+        attrs["live_poll_interval_seconds"] = int(
+            coordinator.update_interval.total_seconds()
+        )
         attrs["track_status_codes"] = sorted(
             {
                 str(r.get("trac_status"))
