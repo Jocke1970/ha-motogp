@@ -3,7 +3,7 @@
 (() => {
   'use strict';
   const TAG='ha-motogp-next-timing-card', REQUIRED='0.2.0-split.2';
-  const BUILD='lap-stats-20260920-01';
+  const BUILD='lap-stats-20261011-01';
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function gap(raw) {
     const s=String(raw??'').trim().replace(',','.');
@@ -31,20 +31,35 @@
     .nt-session-record{padding:9px 14px;border-top:1px solid var(--divider-color,#ddd);font-size:12px;font-weight:900;color:var(--primary-text-color);background:rgba(127,127,127,.045)}
     .nt-session-record strong{color:#e10600}.nt-session-record small{display:block;font-size:10px;color:var(--secondary-text-color);font-weight:600;margin-top:3px}
     .nt-feed-age{display:inline-block;border:1px solid var(--divider-color,#ddd);border-radius:12px;padding:2px 7px;font-size:10px;color:var(--primary-text-color);font-weight:800;background:rgba(127,127,127,.07);white-space:nowrap}
-    .nt-feed-age.stale{color:#9a5400;border-color:#d97706;background:rgba(217,119,6,.12)}
+    .nt-feed-age.ok{color:#16803b;border-color:#16a34a;background:rgba(22,163,74,.10)}
+    .nt-feed-age.delayed{color:#9a5400;border-color:#d97706;background:rgba(217,119,6,.12)}
+    .nt-feed-age.missing{color:#b91c1c;border-color:#dc2626;background:rgba(220,38,38,.10)}
   `;
   function refreshAge(card) {
     const badge=card.shadowRoot?.querySelector('[data-motogp-feed-age]');
     if (!badge) return;
-    if (!card._live||card._spoiler()) {badge.textContent='Tid okänd';return;}
+    const setState=(name,text)=>{
+      badge.classList.remove('ok','delayed','missing');
+      if(name)badge.classList.add(name);
+      badge.textContent=text;
+    };
+    if (!card._live||card._spoiler()) {setState('', 'Tid okänd');return;}
     const stamp=Number(badge.getAttribute('data-motogp-feed-age'));
+    const expected=Number(badge.getAttribute('data-motogp-feed-interval'));
     if (!Number.isFinite(stamp)||stamp<=0||stamp>Date.now()+5000) {
-      badge.textContent='Uppdateringstid okänd';badge.classList.remove('stale');return;
+      setState('', 'Uppdateringstid okänd');return;
     }
     const age=Math.max(0,Math.floor((Date.now()-stamp)/1000));
-    badge.textContent=age<120?`Uppdaterad ${age} s sedan`:
-      `Gammal data · ${Math.floor(age/60)} min ${age%60} s`;
-    badge.classList.toggle('stale',age>=120);
+    const poll=Number.isFinite(expected)&&expected>0?expected:5;
+    const delayedAfter=Math.max(20,Math.ceil(poll*3));
+    const missingAfter=Math.max(60,Math.ceil(poll*12));
+    if(age<delayedAfter) {
+      setState('ok', `● Feed OK · ${age} s`);
+    } else if(age<missingAfter) {
+      setState('delayed', `⚠ Feed fördröjd · ${age} s`);
+    } else {
+      setState('missing', `⛔ Feed saknas · ${Math.floor(age/60)} min ${age%60} s`);
+    }
   }
   function install() {
     const Timing=customElements.get(TAG);
@@ -122,11 +137,13 @@
         const table='<div class="nt-scroll">';
         if(out.includes(table))out=out.replace(table,summary+table);
       }
-      const timestamp=Date.parse(positions?.last_updated||positions?.last_changed||'');
+      const timestamp=Date.parse(attrs.live_poll_at||'');
       const age=Number.isFinite(timestamp)&&timestamp>0?timestamp:0;
+      const interval=Number(attrs.live_poll_interval_seconds);
+      const expected=Number.isFinite(interval)&&interval>0?interval:5;
       const clockEnd='<span class="nt-toggle">';
       if(out.includes(clockEnd))out=out.replace(clockEnd,
-        `<span class="nt-feed-age" data-motogp-feed-age="${age}" title="Tid sedan senast ändrade, verifierade livetimingdata">`+
+        `<span class="nt-feed-age" data-motogp-feed-age="${age}" data-motogp-feed-interval="${expected}" title="Tid sedan senaste lyckade livetiming-poll">`+
         `Uppdateringstid okänd</span>`+clockEnd);
       if(!this.shadowRoot?.querySelector('[data-motogp-gap-trends]')) {
         const style=document.createElement('style');
