@@ -1,39 +1,29 @@
-# MotoGP Sensor 2026.10.0b4 — weekend beta
+# MotoGP Sensor 2026.10.0b5 — live-feed freshness beta
 
-**Fixes a five-minute blind spot between finished and upcoming sessions.** Saturday archive evidence showed Q1→Q2 handoffs exactly ~300 seconds apart and Sprint archiving beginning 5m43s after the scheduled start. b3 keeps 300-second idle polling normally, but switches to 30-second standby polling from 15 minutes before until 30 minutes after a normalized scheduled session start.
+**Backend-only HACS prerelease.** Builds directly on the field-tested 2026.10.0b4 backend. The integration domain remains `motogp_sensor` and existing HA config entries and /config/motogp_data archives must be preserved.
 
-**Supersedes broken 2026.10.0b1.** b1 fails during Home Assistant import because the Broadcast event URL constant eagerly evaluates an undefined `uuid` name. b2 fixes that constant and adds an executable import-time release regression.
+## What changes from b4
 
-**Beta target:** 2026-10-09. This prerelease keeps the existing `motogp_sensor` domain and is intended for live validation before any promotion to `main`.
+- Coordinator now records `live_poll_at` in UTC at **each successful live timing API poll**, whether the selected primary source or PulseLive fallback succeeded. A failed request does not advance this timestamp, and an unchanged payload still counts as a successful poll.
+- `sensor.motogp_rider_positions` now exposes `live_poll_at` (ISO 8601 string or null before the first success) and `live_poll_interval_seconds`. Poll metadata is scoped to this one entity rather than updating every live sensor on each refresh.
+- New weekend regression checks verify the backend timestamp contract and b5 manifest version.
+- Retains b4's tiered session-start polling and all earlier Red Flag/Delayed and IANA timezone fixes, without changing TV delay or session archive format.
 
-## Fixes
+### Evidence from Mandalika, 9–11 October 2026
 
-- **Red Flag / Delayed live polling:** `R` and `D` now remain on the 5-second active-session polling cadence instead of dropping to the 300-second idle cadence. This fixes the reproduced Mandalika case where HA stayed on Red Flag for up to five minutes after the broadcast returned to green.
-- **Consistent active-session context:** the same `I/S/R/D` set is used by `session_in_progress`, live-condition refresh and adaptive polling.
-- **Timezone-aware weekend schedule:** backend obtains the event IANA timezone from the MotoGP Broadcast API, keeps the raw Results API wall-clock `date`, and adds a true `date_utc` for each normalized weekend session.
-- **Timezone metadata:** `sensor.motogp_next_race` exposes `time_zone`.
+Sunday JSON review: MotoGP Warm Up (142 observations), Moto3 Race (445), Moto2 Race (343), MotoGP Race (478). All four captured lap 1 for every recorded rider. Three archives report complete coverage; Moto2 Race reports one missing lap (Holgado, rider 8671, lap 13). This is not a session-start loss. The Warm Up contains one early timestamp for Zarco's lap 7; per operator decision, this historical anomaly is **not** treated as a blocker to the b5 freshness-only prerelease. The archive does not fabricate missing laps.
 
-Regression coverage includes Mandalika **14:05 → 08:05 Europe/Stockholm** and the Red Flag/Delayed polling contract.
+Current dev CI for the freshness change passed weekend regression, frontend, and one-resource Next checks. The HACS beta publishing workflow recompiles the integration and reruns weekend and archive tests before tagging the release.
 
-## Separate Next dashboard update
+## Frontend remains separate
 
-The HACS integration does **not** install `/config/www/ha-motogp-next.js`. A separately verified **Next 0.3.0-dev.5** bundle prefers the new `date_utc` field and renders browser-local time. Its Git blob is:
+The matching Next UI candidate is `0.3.0-dev.6`, maintained as `/config/www/ha-motogp-next.js` and loaded through `/local/ha-motogp-next.js`. It uses `sensor.motogp_rider_positions.attributes.live_poll_at` for its freshness indicator rather than Home Assistant's `last_updated`. This **is not bundled or installed by HACS**; backend b5 does not automatically upgrade the Lovelace JS. Frontend cache-busting/version verification remains a separate deployment step.
 
-`4c73aa7f22ec8876b77beede369d565e86e08e0d`
+## Install and rollback
 
-Keep the existing Lovelace resource; replace only its JS file using the pinned installer. No second resource is required.
+1. Back up HA and preserve `/config/motogp_data/` and `/config/www/ha-motogp-next.js`.
+2. In HACS with prereleases enabled, select exactly `2026.10.0b5`; retain the existing MotoGP config entry.
+3. Restart Home Assistant, confirm integration/entities, then check `sensor.motogp_rider_positions` attributes while live feed polls succeed.
+4. Roll back to `2026.10.0b4` via HACS and restart if needed; do not run old Python overlay scripts or delete the config entry.
 
-## Validation boundary
-
-Dev CI is green, but this is still a beta:
-- confirm live `R → I/S` recovery on the actual HA host;
-- confirm timezone metadata/session `date_utc` from the current event;
-- inspect archive JSON after a qualifying session;
-- do not promote to `main` solely because CI passed.
-
-TV delay remains the operator's setting and is not changed by this release. Existing `/config/motogp_data` is preserved.
-
-
-## 2026.10.0b4
-
-Refines session-start polling from the broad b3 standby window. The coordinator now stays at 300 seconds until T-5 minutes, switches to 15-second polling from T-5 through T+10 while the feed is not active, keeps a 30-second delayed-start fallback through T+30, and uses 5 seconds whenever I/S/R/D is reported. This targets the observed lap-1 losses while reducing unnecessary API traffic.
+`main` is deliberately unchanged. Successful CI and prior b4 field evidence support a b5 beta, but are not a claim of b5 on-host validation.

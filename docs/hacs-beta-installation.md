@@ -1,6 +1,6 @@
-# HACS beta installation, upgrade and rollback — 2026.10.0b4
+# HACS beta installation, upgrade and rollback — 2026.10.0b5
 
-**Do not use 2026.10.0b1.** It contains an import-time `NameError` in the Broadcast URL constant and cannot load the integration. Upgrade directly to **2026.10.0b4**.
+**Do not use 2026.10.0b1.** It contains an import-time `NameError` in the Broadcast URL constant and cannot load the integration. Upgrade directly to **2026.10.0b5**.
 
 This is an independent derived integration based on Liionboy/motogp_sensor, not an official MotoGP release. Domain remains `motogp_sensor`.
 
@@ -8,8 +8,8 @@ This is an independent derived integration based on Liionboy/motogp_sensor, not 
 
 1. Make/confirm a Home Assistant backup. Preserve `/config/motogp_data/` and the independent `/config/www/ha-motogp-next.js`.
 2. Keep the existing MotoGP integration under **Settings → Devices & services**. Do **not** delete or re-add it.
-3. In HACS, keep **Pre-release** enabled for the ha-motogp repository and select the explicit prerelease **2026.10.0b4**.
-4. Confirm the downloaded manifest reports `2026.10.0b4`.
+3. In HACS, keep **Pre-release** enabled for the ha-motogp repository and select the explicit prerelease **2026.10.0b5**.
+4. Confirm the downloaded manifest reports `2026.10.0b5`.
 5. Restart Home Assistant once after the Python integration update.
 6. Check existing MotoGP entities and HA logs before touching the dashboard.
 
@@ -22,11 +22,16 @@ HACS replaces the Python integration under `custom_components/motogp_sensor/`. I
 - the old observation JSONL;
 - `/config/www/ha-motogp-next.js`.
 
-## Next dashboard dev.5
+## Next dashboard dev.6 (separate deployment)
 
-The timezone-corrected Next JS is a separate update. It is still one resource at `/local/ha-motogp-next.js`; do not add a duplicate Lovelace resource. The pinned installer verifies the expected JS blob before replacing the file.
+The timezone-corrected, feed-freshness-aware Next JS 0.3.0-dev.6 is a separate update. Backend b5 does not automatically replace the existing JS. It is still one resource at `/local/ha-motogp-next.js`; do not add a duplicate Lovelace resource. The pinned installer verifies the expected JS blob before replacing the file.
 
 After updating the JS, a hard browser reload may be needed if the browser still serves an older frontend file.
+
+
+## b5 feed freshness check
+
+Confirm that `sensor.motogp_rider_positions` has `live_poll_at` and `live_poll_interval_seconds` attributes. During successful API polling the timestamp should advance even when the rider table does not change. It should not advance on failed primary + fallback polls. The Next dev.6 freshness chip uses this timestamp instead of HA `last_updated`; verify that this JS build actually loaded before judging the chip.
 
 ## Live acceptance checks
 
