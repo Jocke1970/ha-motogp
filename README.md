@@ -36,3 +36,10 @@ The first archive-created session JSON and restart/session-boundary behavior sti
 ### Session-start polling
 
 Polling is now tiered around normalized scheduled session starts: 300 seconds normally, 15 seconds from 5 minutes before through 10 minutes after a scheduled start while the feed is not active, 30 seconds from +10 through +30 minutes as a delayed-start fallback, and 5 seconds for active/Red Flag/Delayed sessions.
+
+### Current dev-only candidate after Indonesia live testing
+
+- Backend manifest on `dev`: **2026.10.0b5** (not released to beta).
+- MotoGP Next dev bundle: **0.3.0-dev.6**.
+- Feed freshness now uses backend `live_poll_at` from successful API polls, never Home Assistant entity `last_updated`.
+- Beta/main promotion is intentionally held until the race-weekend evidence has been evaluated.
